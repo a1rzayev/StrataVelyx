@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="StrataVelyx.MainPage"
@@ -13,11 +13,51 @@
                 Stroke="#3d3d3d"
                 StrokeThickness="0,0,0,1"
                 Padding="8,6">
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
+            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
+                <!-- Project buttons -->
                 <Button Grid.Column="0"
+                        Text="📋 New"
+                        FontSize="11"
+                        HeightRequest="32"
+                        BackgroundColor="#7E57C2"
+                        TextColor="White"
+                        CornerRadius="4"
+                        Padding="8,0"
+                        Clicked="OnNewProjectClicked" />
+                
+                <Button Grid.Column="1"
+                        Text="💾 Save"
+                        FontSize="11"
+                        HeightRequest="32"
+                        BackgroundColor="#512BD4"
+                        TextColor="White"
+                        CornerRadius="4"
+                        Padding="8,0"
+                        Clicked="OnSaveProjectClicked" />
+                
+                <Button Grid.Column="2"
+                        Text="📂 Open"
+                        FontSize="11"
+                        HeightRequest="32"
+                        BackgroundColor="#1976D2"
+                        TextColor="White"
+                        CornerRadius="4"
+                        Padding="8,0"
+                        Clicked="OnLoadProjectClicked" />
+                
+                <!-- Separator -->
+                <BoxView Grid.Column="3" 
+                         WidthRequest="1" 
+                         HeightRequest="24"
+                         Color="#404040"
+                         VerticalOptions="Center"
+                         Margin="4,0" />
+                
+                <!-- Data buttons -->
+                <Button Grid.Column="4"
                         x:Name="ImportButton"
-                        Text="📁 Import"
-                        FontSize="12"
+                        Text="📁 Import Wells"
+                        FontSize="11"
                         HeightRequest="32"
                         BackgroundColor="#3498DB"
                         TextColor="White"
@@ -25,10 +65,10 @@
                         Padding="8,0"
                         Clicked="OnImportClicked" />
                 
-                <Button Grid.Column="1"
+                <Button Grid.Column="5"
                         x:Name="DrawPolygonButton"
                         Text="✏️ Draw"
-                        FontSize="12"
+                        FontSize="11"
                         HeightRequest="32"
                         BackgroundColor="#27AE60"
                         TextColor="White"
@@ -36,21 +76,10 @@
                         Padding="8,0"
                         Clicked="OnDrawPolygonClicked" />
                 
-                <Button Grid.Column="2"
-                        x:Name="ZoomToFitButton"
-                        Text="🔍 Fit"
-                        FontSize="12"
-                        HeightRequest="32"
-                        BackgroundColor="#9B59B6"
-                        TextColor="White"
-                        CornerRadius="4"
-                        Padding="8,0"
-                        Clicked="OnZoomToFitClicked" />
-                
-                <Button Grid.Column="3"
+                <Button Grid.Column="6"
                         x:Name="ExportButton"
                         Text="💾 Export"
-                        FontSize="12"
+                        FontSize="11"
                         HeightRequest="32"
                         BackgroundColor="#E67E22"
                         TextColor="White"
@@ -58,11 +87,11 @@
                         Padding="8,0"
                         Clicked="OnExportClicked" />
                 
-                <Label Grid.Column="4"
+                <Label Grid.Column="7"
                        x:Name="StatusLabel"
-                       Text="Ready"
+                       Text="🌍 World Map Ready - Import data anywhere"
                        TextColor="#95A5A6"
-                       FontSize="11"
+                       FontSize="10"
                        VerticalOptions="Center"
                        HorizontalOptions="End"
                        Margin="8,0,0,0" />
@@ -90,17 +119,26 @@
                     </StackLayout>
                 </ScrollView>
                 
-                <!-- Test Button -->
-                <Button Grid.Row="2"
-                        x:Name="TestButton"
-                        Text="Load Test GeoJSON"
-                        FontSize="11"
-                        HeightRequest="32"
-                        BackgroundColor="#512BD4"
-                        TextColor="White"
-                        CornerRadius="4"
-                        Margin="0,8,0,0"
-                        Clicked="OnTestButtonClicked" />
+                <!-- Action Buttons -->
+                <StackLayout Grid.Row="2" Spacing="6" Margin="0,8,0,0">
+                    <Button x:Name="ImportPolygonsButton"
+                            Text="📐 Import Polygons"
+                            FontSize="11"
+                            HeightRequest="32"
+                            BackgroundColor="#7E57C2"
+                            TextColor="White"
+                            CornerRadius="4"
+                            Clicked="OnImportPolygonsClicked" />
+                    
+                    <Button x:Name="TestButton"
+                            Text="🔬 Test Spatial Ops"
+                            FontSize="11"
+                            HeightRequest="32"
+                            BackgroundColor="#512BD4"
+                            TextColor="White"
+                            CornerRadius="4"
+                            Clicked="OnTestButtonClicked" />
+                </StackLayout>
             </Grid>
         </Border>
         

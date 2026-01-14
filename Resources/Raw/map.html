@@ -31,13 +31,47 @@
 <body>
     <div id="map"></div>
     <script>
-        // Initialize map
+        // Initialize map with global OpenStreetMap tiles
+        // Covers entire world - zoom anywhere from 0 (world) to 19 (street level)
         const map = new maplibregl.Map({
             container: 'map',
-            style: 'https://demotiles.maplibre.org/style.json',
-            center: [-95.37, 29.76], // Houston area
-            zoom: 10
+            style: {
+                version: 8,
+                sources: {
+                    'osm': {
+                        type: 'raster',
+                        tiles: [
+                            'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
+                        ],
+                        tileSize: 256,
+                        attribution: '© OpenStreetMap contributors'
+                    }
+                },
+                layers: [{
+                    id: 'osm',
+                    type: 'raster',
+                    source: 'osm',
+                    minzoom: 0,
+                    maxzoom: 19
+                }],
+                glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf'
+            },
+            center: [0, 20], // Global view
+            zoom: 2, // World zoom level
+            maxZoom: 19,
+            minZoom: 0
         });
+        
+        // Add navigation controls
+        map.addControl(new maplibregl.NavigationControl(), 'top-right');
+        
+        // Add scale control
+        map.addControl(new maplibregl.ScaleControl({
+            maxWidth: 200,
+            unit: 'metric'
+        }), 'bottom-left');
 
         // Initialize Draw control
         const draw = new MapLibreDraw({
@@ -53,7 +87,26 @@
         const layers = new Map();
 
         // Bridge object for C# communication
-        window.mapBridge = {
+            // Add function to set map center and zoom (for project loading)
+            window.setMapView = function(lon, lat, zoom) {
+                map.flyTo({
+                    center: [lon, lat],
+                    zoom: zoom,
+                    duration: 2000
+                });
+            };
+            
+            // Add function to get current map view (for project saving)
+            window.getMapView = function() {
+                const center = map.getCenter();
+                return {
+                    longitude: center.lng,
+                    latitude: center.lat,
+                    zoom: map.getZoom()
+                };
+            };
+            
+            window.mapBridge = {
             // C# → JS: Add GeoJSON layer
             addLayer: function(layerId, geojson, style) {
                 try {

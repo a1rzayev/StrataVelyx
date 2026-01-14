@@ -1,4 +1,4 @@
-﻿using StrataVelyx.ViewModels;
+using StrataVelyx.ViewModels;
 using StrataVelyx.Services;
 using System.Text.Json;
 
@@ -6,7 +6,7 @@ namespace StrataVelyx;
 
 public partial class MainPage : ContentPage
 {
-	private MainViewModel? _viewModel;
+	private EnhancedMainViewModel? _viewModel;
 	private WebViewBridgeService? _bridgeService;
 	private bool _isDrawingMode = false;
 	private System.Timers.Timer? _messagePollTimer;
@@ -17,7 +17,7 @@ public partial class MainPage : ContentPage
 		{
 			InitializeComponent();
 			
-			_viewModel = new MainViewModel();
+			_viewModel = new EnhancedMainViewModel();
 			_bridgeService = new WebViewBridgeService();
 			_viewModel.BridgeService = _bridgeService;
 			
@@ -221,7 +221,79 @@ public partial class MainPage : ContentPage
 		try
 		{
 			if (_viewModel?.ImportWellsCommand?.CanExecute(null) == true)
+			{
 				_viewModel.ImportWellsCommand.Execute(null);
+				// Update layers panel after import
+				UpdateLayersPanel();
+			}
+		}
+		catch (Exception ex)
+		{
+			await DisplayAlert("Error", ex.Message, "OK");
+		}
+	}
+	
+	private async void OnImportPolygonsClicked(object sender, EventArgs e)
+	{
+		try
+		{
+			if (_viewModel?.ImportPolygonsCommand?.CanExecute(null) == true)
+			{
+				_viewModel.ImportPolygonsCommand.Execute(null);
+				// Update layers panel after import
+				UpdateLayersPanel();
+			}
+		}
+		catch (Exception ex)
+		{
+			await DisplayAlert("Error", ex.Message, "OK");
+		}
+	}
+	
+	private void UpdateLayersPanel()
+	{
+		// Layers are bound to ViewModel.Layers ObservableCollection
+		// This will update automatically via binding
+	}
+	
+	private async void OnNewProjectClicked(object sender, EventArgs e)
+	{
+		try
+		{
+			if (_viewModel?.NewProjectCommand?.CanExecute(null) == true)
+			{
+				_viewModel.NewProjectCommand.Execute(null);
+			}
+		}
+		catch (Exception ex)
+		{
+			await DisplayAlert("Error", ex.Message, "OK");
+		}
+	}
+	
+	private async void OnSaveProjectClicked(object sender, EventArgs e)
+	{
+		try
+		{
+			if (_viewModel?.SaveProjectCommand?.CanExecute(null) == true)
+			{
+				_viewModel.SaveProjectCommand.Execute(null);
+			}
+		}
+		catch (Exception ex)
+		{
+			await DisplayAlert("Error", ex.Message, "OK");
+		}
+	}
+	
+	private async void OnLoadProjectClicked(object sender, EventArgs e)
+	{
+		try
+		{
+			if (_viewModel?.LoadProjectCommand?.CanExecute(null) == true)
+			{
+				_viewModel.LoadProjectCommand.Execute(null);
+			}
 		}
 		catch (Exception ex)
 		{
@@ -306,6 +378,26 @@ public partial class MainPage : ContentPage
 	{
 		try
 		{
+			if (_viewModel?.TestSpatialCommand?.CanExecute(null) == true)
+			{
+				_viewModel.TestSpatialCommand.Execute(null);
+			}
+			else
+			{
+				// Load sample data if no data loaded yet
+				await LoadSampleDataAsync();
+			}
+		}
+		catch (Exception ex)
+		{
+			await DisplayAlert("Error", $"Failed to load test data: {ex.Message}", "OK");
+		}
+	}
+	
+	private async Task LoadSampleDataAsync()
+	{
+		try
+		{
 			if (_bridgeService == null) return;
 			
 			// Load sample GeoJSON
@@ -314,30 +406,30 @@ public partial class MainPage : ContentPage
 			var geojson = await reader.ReadToEndAsync();
 			
 			// Add layer to map
-			var success = await _bridgeService.AddLayerAsync("test-polygons", geojson, new Dictionary<string, object>
+			var success = await _bridgeService.AddLayerAsync("sample-polygons", geojson, new Dictionary<string, object>
 			{
 				{ "fill-color", "#3bb2d0" },
-				{ "fill-opacity", 0.5 },
+				{ "fill-opacity", 0.3 },
 				{ "stroke-color", "#1e90ff" },
 				{ "stroke-width", 2 }
 			});
 			
 			if (success)
 			{
-				StatusLabel.Text = "Test GeoJSON loaded";
-				AddChatMessage("System", "Test GeoJSON layer added to map");
+				StatusLabel.Text = "Sample data loaded - Use Import to load your own data";
+				AddChatMessage("System", "Sample polygons loaded. Click Import to load real data.");
 				
 				// Add to layers panel
-				AddLayerToPanel("test-polygons", "Test Polygons", true);
+				AddLayerToPanel("sample-polygons", "Sample Polygons (3)", true);
 			}
 			else
 			{
-				StatusLabel.Text = "Failed to load test GeoJSON";
+				StatusLabel.Text = "Failed to load sample data";
 			}
 		}
 		catch (Exception ex)
 		{
-			await DisplayAlert("Error", $"Failed to load test data: {ex.Message}", "OK");
+			await DisplayAlert("Error", $"Failed to load sample data: {ex.Message}", "OK");
 		}
 	}
 	
