@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MapLibre Map</title>
+    <script src='https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js'></script>
+    <link href='https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css' rel='stylesheet' />
+    <script src='https://unpkg.com/@maplibre/maplibre-gl-draw@1.3.0/dist/maplibre-gl-draw.js'></script>
+    <link href='https://unpkg.com/@maplibre/maplibre-gl-draw@1.3.0/dist/maplibre-gl-draw.css' rel='stylesheet' />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+        .maplibregl-ctrl-top-left {
+            top: 10px;
+            left: 10px;
+        }
+        .maplibregl-ctrl-top-right {
+            top: 10px;
+            right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <script>
+        // Initialize map
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: 'https://demotiles.maplibre.org/style.json',
+            center: [-95.37, 29.76], // Houston area
+            zoom: 10
+        });
+
+        // Initialize Draw control
+        const draw = new MapLibreDraw({
+            displayControlsDefault: false,
+            controls: {
+                polygon: true,
+                trash: true
+            }
+        });
+        map.addControl(draw);
+
+        // Store layers
+        const layers = new Map();
+
+        // Bridge object for C# communication
+        window.mapBridge = {
+            // C# → JS: Add GeoJSON layer
+            addLayer: function(layerId, geojson, style) {
+                try {
+                    // Remove existing layer if present
+                    if (map.getLayer(layerId)) {
+                        map.removeLayer(layerId);
+                        map.removeSource(layerId);
+                    }
+
+                    // Add source
+                    map.addSource(layerId, {
+                        type: 'geojson',
+                        data: geojson
+                    });
+
+                    // Determine geometry type
+                    const geometryType = geojson.features?.[0]?.geometry?.type || 'Point';
+                    
+                    // Default style if not provided
+                    const defaultStyle = style || {
+                        'fill-color': '#3bb2d0',
+                        'fill-opacity': 0.5,
+                        'stroke-color': '#1e90ff',
+                        'stroke-width': 2
+                    };
+
+                    // Add layer based on geometry type
+                    if (geometryType === 'Polygon' || geometryType === 'MultiPolygon') {
+                        map.addLayer({
+                            id: layerId,
+                            type: 'fill',
+                            source: layerId,
+                            paint: {
+                                'fill-color': defaultStyle['fill-color'] || '#3bb2d0',
+                                'fill-opacity': defaultStyle['fill-opacity'] || 0.5
+                            }
+                        });
+                        map.addLayer({
+                            id: layerId + '-outline',
+                            type: 'line',
+                            source: layerId,
+                            paint: {
+                                'line-color': defaultStyle['stroke-color'] || '#1e90ff',
+                                'line-width': defaultStyle['stroke-width'] || 2
+                            }
+                        });
+                    } else if (geometryType === 'LineString' || geometryType === 'MultiLineString') {
+                        map.addLayer({
+                            id: layerId,
+                            type: 'line',
+                            source: layerId,
+                            paint: {
+                                'line-color': defaultStyle['stroke-color'] || '#1e90ff',
+                                'line-width': defaultStyle['stroke-width'] || 2
+                            }
+                        });
+                    } else {
+                        // Point
+                        map.addLayer({
+                            id: layerId,
+                            type: 'circle',
+                            source: layerId,
+                            paint: {
+                                'circle-radius': defaultStyle['circle-radius'] || 5,
+                                'circle-color': defaultStyle['circle-color'] || '#3bb2d0',
+                                'circle-stroke-color': defaultStyle['circle-stroke-color'] || '#fff',
+                                'circle-stroke-width': defaultStyle['circle-stroke-width'] || 1
+                            }
+                        });
+                    }
+
+                    layers.set(layerId, { geojson, style: defaultStyle });
+                    
+                    // Zoom to bounds
+                    if (geojson.features && geojson.features.length > 0) {
+                        const bounds = new maplibregl.LngLatBounds();
+                        geojson.features.forEach(feature => {
+                            if (feature.geometry.type === 'Point') {
+                                bounds.extend(feature.geometry.coordinates);
+                            } else if (feature.geometry.type === 'Polygon') {
+                                feature.geometry.coordinates[0].forEach(coord => bounds.extend(coord));
+                            } else if (feature.geometry.type === 'LineString') {
+                                feature.geometry.coordinates.forEach(coord => bounds.extend(coord));
+                            }
+                        });
+                        map.fitBounds(bounds, { padding: 50 });
+                    }
+
+                    return { success: true, message: `Layer ${layerId} added` };
+                } catch (error) {
+                    return { success: false, message: error.message };
+                }
+            },
+
+            // C# → JS: Remove layer
+            removeLayer: function(layerId) {
+                try {
+                    if (map.getLayer(layerId)) {
+                        map.removeLayer(layerId);
+                    }
+                    if (map.getLayer(layerId + '-outline')) {
+                        map.removeLayer(layerId + '-outline');
+                    }
+                    if (map.getSource(layerId)) {
+                        map.removeSource(layerId);
+                    }
+                    layers.delete(layerId);
+                    return { success: true };
+                } catch (error) {
+                    return { success: false, message: error.message };
+                }
+            },
+
+            // C# → JS: Set layer style
+            setLayerStyle: function(layerId, style) {
+                try {
+                    const layer = layers.get(layerId);
+                    if (!layer) {
+                        return { success: false, message: 'Layer not found' };
+                    }
+
+                    // Update paint properties
+                    Object.keys(style).forEach(key => {
+                        if (map.getLayer(layerId)) {
+                            map.setPaintProperty(layerId, key, style[key]);
+                        }
+                        if (map.getLayer(layerId + '-outline') && key.startsWith('line-')) {
+                            map.setPaintProperty(layerId + '-outline', key, style[key]);
+                        }
+                    });
+
+                    layer.style = { ...layer.style, ...style };
+                    return { success: true };
+                } catch (error) {
+                    return { success: false, message: error.message };
+                }
+            },
+
+            // C# → JS: Zoom to bounds
+            zoomToBounds: function(bounds) {
+                try {
+                    map.fitBounds(bounds, { padding: 50 });
+                    return { success: true };
+                } catch (error) {
+                    return { success: false, message: error.message };
+                }
+            },
+
+            // C# → JS: Enable/disable drawing
+            setDrawingMode: function(enabled) {
+                try {
+                    if (enabled) {
+                        draw.changeMode('draw_polygon');
+                    } else {
+                        draw.changeMode('simple_select');
+                    }
+                    return { success: true };
+                } catch (error) {
+                    return { success: false, message: error.message };
+                }
+            }
+        };
+
+        // Message queue for cross-platform communication
+        window.mapMessageQueue = [];
+        
+        function postMessageToCSharp(message) {
+            const messageStr = JSON.stringify(message);
+            
+            // Try platform-specific methods first
+            if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.mapMessage) {
+                // iOS/MacCatalyst
+                window.webkit.messageHandlers.mapMessage.postMessage(message);
+            } else if (window.chrome && window.chrome.webview) {
+                // Windows/Android
+                window.chrome.webview.postMessage(messageStr);
+            } else {
+                // Fallback: add to queue for C# to poll
+                window.mapMessageQueue.push(messageStr);
+                // Keep queue size manageable
+                if (window.mapMessageQueue.length > 100) {
+                    window.mapMessageQueue.shift();
+                }
+            }
+        }
+        
+        // Expose function to get messages from queue
+        window.getMapMessages = function() {
+            const messages = window.mapMessageQueue.slice();
+            window.mapMessageQueue = [];
+            return JSON.stringify(messages);
+        };
+
+        // JS → C#: Handle map clicks
+        map.on('click', function(e) {
+            const features = map.queryRenderedFeatures(e.point, {
+                layers: Array.from(layers.keys())
+            });
+
+            if (features.length > 0) {
+                const feature = features[0];
+                const featureId = feature.properties?.id || feature.id || 'unknown';
+                const coordinates = e.lngLat;
+                
+                postMessageToCSharp({
+                    type: 'featureClick',
+                    featureId: featureId,
+                    coordinates: [coordinates.lng, coordinates.lat],
+                    properties: feature.properties
+                });
+            } else {
+                postMessageToCSharp({
+                    type: 'mapClick',
+                    coordinates: [e.lngLat.lng, e.lngLat.lat]
+                });
+            }
+        });
+
+        // JS → C#: Handle polygon drawing
+        map.on('draw.create', function(e) {
+            const feature = e.features[0];
+            const coordinates = feature.geometry.coordinates[0]; // Polygon coordinates
+            
+            postMessageToCSharp({
+                type: 'polygonDrawn',
+                coordinates: coordinates,
+                area: calculatePolygonArea(coordinates)
+            });
+        });
+
+        // Calculate polygon area (simplified)
+        function calculatePolygonArea(coordinates) {
+            let area = 0;
+            for (let i = 0; i < coordinates.length - 1; i++) {
+                area += coordinates[i][0] * coordinates[i + 1][1];
+                area -= coordinates[i + 1][0] * coordinates[i][1];
+            }
+            return Math.abs(area / 2);
+        }
+
+        // Wait for map to load
+        map.on('load', function() {
+            console.log('Map loaded and ready');
+            // Notify C# that map is ready
+            postMessageToCSharp({ type: 'mapReady' });
+        });
+    </script>
+</body>
+</html>

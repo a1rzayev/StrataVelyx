@@ -2,19 +2,9 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using System.Text.Json;
 using StrataVelyx.Models;
 using StrataVelyx.Services;
-using Mapsui;
-using Mapsui.Layers;
-using Mapsui.Projections;
-using Mapsui.Styles;
-using Mapsui.Tiling;
-using Mapsui.UI.Maui;
-using NetTopologySuite.Geometries;
-using MapsuiMap = Mapsui.Map;
-using MapsuiColor = Mapsui.Styles.Color;
-using MapsuiBrush = Mapsui.Styles.Brush;
-using MapsuiPen = Mapsui.Styles.Pen;
 
 namespace StrataVelyx.ViewModels;
 
@@ -71,7 +61,7 @@ public class MainViewModel : INotifyPropertyChanged
     public ICommand ImportWellsCommand { get; }
     public ICommand ExportWellsCommand { get; }
     
-    public MapsuiMap? MapControl { get; set; }
+    public WebViewBridgeService? BridgeService { get; set; }
     
     private async Task SendCommandAsync()
     {
@@ -229,79 +219,98 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
     
-    private void UpdateMapWells()
+    private async void UpdateMapWells()
     {
-        if (MapControl == null) return;
+        if (BridgeService == null) return;
         
-        // Remove existing wells layer
-        var existingLayer = MapControl.Layers.FirstOrDefault(l => l.Name == "Wells");
-        if (existingLayer != null)
+        try
         {
-            MapControl.Layers.Remove(existingLayer);
-        }
-        
-        // Create new layer with filtered wells
-        var wellsLayer = CreateWellsLayer(_filteredWells);
-        MapControl.Layers.Add(wellsLayer);
-        
-        // Zoom to wells if first time
-        if (_allWells.Count > 0 && MapControl.Navigator != null)
-        {
-            var extent = GetWellsExtent(_filteredWells);
-            if (extent != null)
+            // Remove existing wells layer
+            await BridgeService.RemoveLayerAsync("wells");
+            
+            if (_filteredWells.Count == 0) return;
+            
+            // Create GeoJSON from filtered wells
+            var geojson = CreateWellsGeoJSON(_filteredWells);
+            
+            // Add layer to map
+            var style = new Dictionary<string, object>
             {
-                MapControl.Navigator.ZoomToBox(extent);
+                { "circle-radius", 6 },
+                { "circle-color", "#3bb2d0" },
+                { "circle-stroke-color", "#fff" },
+                { "circle-stroke-width", 1 }
+            };
+            
+            await BridgeService.AddLayerAsync("wells", geojson, style);
+            
+            // Zoom to wells if first time
+            if (_allWells.Count > 0)
+            {
+                var bounds = GetWellsBounds(_filteredWells);
+                if (bounds.HasValue)
+                {
+                    await BridgeService.ZoomToBoundsAsync(bounds.Value.MinLon, bounds.Value.MinLat, bounds.Value.MaxLon, bounds.Value.MaxLat);
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"UpdateMapWells Error: {ex}");
+            StatusMessage = $"Error updating map: {ex.Message}";
         }
     }
     
-    private ILayer CreateWellsLayer(List<Well> wells)
+    private string CreateWellsGeoJSON(List<Well> wells)
     {
-        var layer = new MemoryLayer
-        {
-            Name = "Wells",
-            IsMapInfoLayer = true
-        };
-        
-        var features = new List<IFeature>();
+        var features = new List<object>();
         
         foreach (var well in wells)
         {
-            var point = SphericalMercator.FromLonLat(well.Longitude, well.Latitude);
-            var feature = new PointFeature(new MPoint(point.x, point.y));
-            
-            feature.Styles.Add(new SymbolStyle
+            var color = GetWellColorHex(well);
+            features.Add(new
             {
-                SymbolScale = 0.5,
-                Fill = new MapsuiBrush(GetWellColor(well)),
-                Outline = new MapsuiPen(MapsuiColor.Black, 2)
+                type = "Feature",
+                id = well.Name,
+                properties = new
+                {
+                    id = well.Name,
+                    name = well.Name,
+                    status = well.Status,
+                    watercut = well.Watercut,
+                    oilRate = well.OilRate,
+                    color = color
+                },
+                geometry = new
+                {
+                    type = "Point",
+                    coordinates = new[] { well.Longitude, well.Latitude }
+                }
             });
-            
-            feature["Name"] = well.Name;
-            feature["Status"] = well.Status;
-            feature["Watercut"] = well.Watercut.ToString("F1");
-            feature["OilRate"] = well.OilRate.ToString("F0");
-            
-            features.Add(feature);
         }
         
-        layer.Features = features;
-        return layer;
+        var featureCollection = new
+        {
+            type = "FeatureCollection",
+            features = features
+        };
+        
+        return JsonSerializer.Serialize(featureCollection);
     }
     
-    private MapsuiColor GetWellColor(Well well)
+    private string GetWellColorHex(Well well)
     {
         return well.Status.ToLower() switch
         {
-            "producer" => MapsuiColor.FromArgb(255, 0, 128, 0),      // Green
-            "injector" => MapsuiColor.FromArgb(255, 0, 0, 255),      // Blue
-            "active" => MapsuiColor.FromArgb(255, 0, 200, 0),        // Light green
-            "inactive" => MapsuiColor.FromArgb(255, 128, 128, 128),  // Gray
-            _ => MapsuiColor.FromArgb(255, 255, 165, 0)              // Orange
+            "producer" => "#008000",      // Green
+            "injector" => "#0000FF",      // Blue
+            "active" => "#00C800",        // Light green
+            "inactive" => "#808080",      // Gray
+            _ => "#FFA500"                // Orange
         };
     }
     
-    private MRect? GetWellsExtent(List<Well> wells)
+    private (double MinLon, double MinLat, double MaxLon, double MaxLat)? GetWellsBounds(List<Well> wells)
     {
         if (wells.Count == 0) return null;
         
@@ -310,34 +319,19 @@ public class MainViewModel : INotifyPropertyChanged
         var minLat = wells.Min(w => w.Latitude);
         var maxLat = wells.Max(w => w.Latitude);
         
-        var min = SphericalMercator.FromLonLat(minLon, minLat);
-        var max = SphericalMercator.FromLonLat(maxLon, maxLat);
-        
-        return new MRect(min.x, min.y, max.x, max.y);
+        return (minLon, minLat, maxLon, maxLat);
     }
     
-    public void InitializeMap(MapsuiMap map)
+    public void InitializeBridge(WebViewBridgeService bridgeService)
     {
         try
         {
-            MapControl = map;
-            
-            // Add OpenStreetMap background
-            var tileLayer = OpenStreetMap.CreateTileLayer();
-            if (tileLayer != null)
-            {
-                map.Layers.Add(tileLayer);
-            }
-            
-            // Set initial map position (Houston area - center of sample data)
-            map.Navigator?.CenterOn(new MPoint(-10609293, 3475163)); // Houston in Web Mercator
-            map.Navigator?.ZoomTo(50000); // Zoom level
-            
+            BridgeService = bridgeService;
             StatusMessage = "Map ready. Click 📁 to import wells or type a command.";
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"InitializeMap Error: {ex}");
+            System.Diagnostics.Debug.WriteLine($"InitializeBridge Error: {ex}");
             StatusMessage = $"Map initialization warning: {ex.Message}. You can still import wells.";
         }
     }

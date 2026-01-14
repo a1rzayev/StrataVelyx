@@ -9,15 +9,13 @@
     Title="StrataVelyx">
 
     <ShellContent
-        Title="Test"
-        ContentTemplate="{DataTemplate test:SimplePage}"
-        Route="TestPage" />
-    
-    <!-- Commented out until we fix the map issue
-    <ShellContent
         Title="Home"
         ContentTemplate="{DataTemplate local:MainPage}"
         Route="MainPage" />
-    -->
+    
+    <ShellContent
+        Title="Test"
+        ContentTemplate="{DataTemplate test:SimplePage}"
+        Route="TestPage" />
 
 </Shell>

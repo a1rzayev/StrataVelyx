@@ -1,134 +1,167 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:mapsui="clr-namespace:Mapsui.UI.Maui;assembly=Mapsui.UI.Maui"
              x:Class="StrataVelyx.MainPage"
-             Title="StrataVelyx - Reservoir GIS">
+             Title="StrataVelyx - Reservoir GIS"
+             BackgroundColor="#1a1a1a">
 
-    <Grid RowDefinitions="*,Auto,Auto" Padding="0">
+    <Grid ColumnDefinitions="250,*,300" RowDefinitions="Auto,*" Padding="0">
         
-        <!-- Map View -->
-        <mapsui:MapControl x:Name="MapView" 
-                          Grid.Row="0"
-                          BackgroundColor="#E0E0E0" />
-        
-        <!-- Status Bar -->
-        <Border Grid.Row="1" 
-                BackgroundColor="#2C3E50"
-                Padding="10,8">
-            <Label x:Name="StatusLabel"
-                   Text="Ready"
-                   TextColor="White"
-                   FontSize="12"
-                   LineBreakMode="TailTruncation" />
-        </Border>
-        
-        <!-- Chat/Command Interface -->
-        <Border Grid.Row="2" 
-                BackgroundColor="#34495E"
-                Padding="10">
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
-                
-                <!-- Import Button -->
+        <!-- Top Toolbar -->
+        <Border Grid.Column="0" Grid.ColumnSpan="3" Grid.Row="0"
+                BackgroundColor="#2d2d2d"
+                Stroke="#3d3d3d"
+                StrokeThickness="0,0,0,1"
+                Padding="8,6">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
                 <Button Grid.Column="0"
                         x:Name="ImportButton"
-                        Text="📁"
-                        FontSize="18"
-                        WidthRequest="50"
-                        HeightRequest="44"
+                        Text="📁 Import"
+                        FontSize="12"
+                        HeightRequest="32"
                         BackgroundColor="#3498DB"
                         TextColor="White"
-                        CornerRadius="6"
+                        CornerRadius="4"
+                        Padding="8,0"
                         Clicked="OnImportClicked" />
                 
-                <!-- Command Input -->
-                <Entry Grid.Column="1"
-                       x:Name="ChatEntry"
-                       Placeholder="Type command (e.g., 'show injectors only')"
-                       PlaceholderColor="#95A5A6"
-                       TextColor="White"
-                       BackgroundColor="#2C3E50"
-                       HeightRequest="44"
-                       Completed="OnSendCommand" />
-                
-                <!-- Send Button -->
-                <Button Grid.Column="2"
-                        x:Name="SendButton"
-                        Text="Send"
-                        HeightRequest="44"
+                <Button Grid.Column="1"
+                        x:Name="DrawPolygonButton"
+                        Text="✏️ Draw"
+                        FontSize="12"
+                        HeightRequest="32"
                         BackgroundColor="#27AE60"
                         TextColor="White"
-                        CornerRadius="6"
-                        Clicked="OnSendCommand" />
+                        CornerRadius="4"
+                        Padding="8,0"
+                        Clicked="OnDrawPolygonClicked" />
                 
-                <!-- Export Button -->
+                <Button Grid.Column="2"
+                        x:Name="ZoomToFitButton"
+                        Text="🔍 Fit"
+                        FontSize="12"
+                        HeightRequest="32"
+                        BackgroundColor="#9B59B6"
+                        TextColor="White"
+                        CornerRadius="4"
+                        Padding="8,0"
+                        Clicked="OnZoomToFitClicked" />
+                
                 <Button Grid.Column="3"
                         x:Name="ExportButton"
-                        Text="💾"
-                        FontSize="18"
-                        WidthRequest="50"
-                        HeightRequest="44"
+                        Text="💾 Export"
+                        FontSize="12"
+                        HeightRequest="32"
                         BackgroundColor="#E67E22"
                         TextColor="White"
-                        CornerRadius="6"
+                        CornerRadius="4"
+                        Padding="8,0"
                         Clicked="OnExportClicked" />
+                
+                <Label Grid.Column="4"
+                       x:Name="StatusLabel"
+                       Text="Ready"
+                       TextColor="#95A5A6"
+                       FontSize="11"
+                       VerticalOptions="Center"
+                       HorizontalOptions="End"
+                       Margin="8,0,0,0" />
             </Grid>
         </Border>
         
-        <!-- Chat History Overlay (hidden by default) -->
-        <Border x:Name="ChatHistoryPanel"
-                Grid.Row="0"
-                Grid.RowSpan="3"
-                BackgroundColor="#CC000000"
-                IsVisible="False"
-                Padding="20">
-            <Grid RowDefinitions="Auto,*,Auto">
-                <Label Grid.Row="0" 
-                       Text="Command History"
-                       TextColor="White"
-                       FontSize="20"
+        <!-- Layers Panel (Left) -->
+        <Border Grid.Column="0" Grid.Row="1"
+                BackgroundColor="#252525"
+                Stroke="#3d3d3d"
+                StrokeThickness="0,0,1,0">
+            <Grid RowDefinitions="Auto,*,Auto" Padding="8">
+                <!-- Layers Header -->
+                <Label Grid.Row="0"
+                       Text="Layers"
+                       TextColor="#E0E0E0"
+                       FontSize="14"
                        FontAttributes="Bold"
-                       Margin="0,0,0,10" />
+                       Margin="0,0,0,8" />
                 
+                <!-- Layers List -->
                 <ScrollView Grid.Row="1">
-                    <CollectionView x:Name="ChatHistoryView"
-                                    BackgroundColor="Transparent">
-                        <CollectionView.ItemTemplate>
-                            <DataTemplate>
-                                <Label Text="{Binding .}"
-                                       TextColor="White"
-                                       FontSize="14"
-                                       Margin="0,2"
-                                       LineBreakMode="WordWrap" />
-                            </DataTemplate>
-                        </CollectionView.ItemTemplate>
-                    </CollectionView>
+                    <StackLayout x:Name="LayersStack" Spacing="4">
+                        <!-- Layers will be added dynamically -->
+                    </StackLayout>
                 </ScrollView>
                 
+                <!-- Test Button -->
                 <Button Grid.Row="2"
-                        Text="Close"
-                        BackgroundColor="#E74C3C"
+                        x:Name="TestButton"
+                        Text="Load Test GeoJSON"
+                        FontSize="11"
+                        HeightRequest="32"
+                        BackgroundColor="#512BD4"
                         TextColor="White"
-                        Margin="0,10,0,0"
-                        Clicked="OnCloseHistory" />
+                        CornerRadius="4"
+                        Margin="0,8,0,0"
+                        Clicked="OnTestButtonClicked" />
             </Grid>
         </Border>
         
-        <!-- Help Button (Floating) -->
-        <Button x:Name="HelpButton"
-                Grid.Row="0"
-                Text="?"
-                FontSize="20"
-                FontAttributes="Bold"
-                WidthRequest="50"
-                HeightRequest="50"
-                CornerRadius="25"
-                BackgroundColor="#9B59B6"
-                TextColor="White"
-                HorizontalOptions="End"
-                VerticalOptions="End"
-                Margin="0,0,20,20"
-                Clicked="OnHelpClicked" />
+        <!-- Map View (Center) -->
+        <Grid Grid.Column="1" Grid.Row="1">
+            <WebView x:Name="MapWebView"
+                     BackgroundColor="#1a1a1a" />
+        </Grid>
+        
+        <!-- Chat Panel (Right) -->
+        <Border Grid.Column="2" Grid.Row="1"
+                BackgroundColor="#252525"
+                Stroke="#3d3d3d"
+                StrokeThickness="1,0,0,0">
+            <Grid RowDefinitions="Auto,*,Auto" Padding="8">
+                <!-- Chat Header -->
+                <Label Grid.Row="0"
+                       Text="Chat / Commands"
+                       TextColor="#E0E0E0"
+                       FontSize="14"
+                       FontAttributes="Bold"
+                       Margin="0,0,0,8" />
+                
+                <!-- Chat History -->
+                <ScrollView Grid.Row="1">
+                    <StackLayout x:Name="ChatHistoryStack" Spacing="4">
+                        <Label Text="Welcome to StrataVelyx"
+                               TextColor="#95A5A6"
+                               FontSize="12"
+                               Margin="0,0,0,4" />
+                        <Label Text="Type commands or use the map tools to get started."
+                               TextColor="#6E6E6E"
+                               FontSize="11"
+                               LineBreakMode="WordWrap" />
+                    </StackLayout>
+                </ScrollView>
+                
+                <!-- Chat Input -->
+                <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="6" Margin="0,8,0,0">
+                    <Entry Grid.Column="0"
+                           x:Name="ChatEntry"
+                           Placeholder="Type command..."
+                           PlaceholderColor="#6E6E6E"
+                           TextColor="#E0E0E0"
+                           BackgroundColor="#1a1a1a"
+                           HeightRequest="36"
+                           FontSize="12"
+                           Completed="OnSendCommand" />
+                    <Button Grid.Column="1"
+                            x:Name="SendButton"
+                            Text="Send"
+                            FontSize="11"
+                            HeightRequest="36"
+                            BackgroundColor="#27AE60"
+                            TextColor="White"
+                            CornerRadius="4"
+                            Padding="12,0"
+                            Clicked="OnSendCommand" />
+                </Grid>
+            </Grid>
+        </Border>
     </Grid>
 
 </ContentPage>

@@ -1,12 +1,15 @@
 ﻿using StrataVelyx.ViewModels;
 using StrataVelyx.Services;
+using System.Text.Json;
 
 namespace StrataVelyx;
 
 public partial class MainPage : ContentPage
 {
 	private MainViewModel? _viewModel;
-	private ChatCommandService? _chatService;
+	private WebViewBridgeService? _bridgeService;
+	private bool _isDrawingMode = false;
+	private System.Timers.Timer? _messagePollTimer;
 
 	public MainPage()
 	{
@@ -15,20 +18,22 @@ public partial class MainPage : ContentPage
 			InitializeComponent();
 			
 			_viewModel = new MainViewModel();
-			_chatService = new ChatCommandService();
+			_bridgeService = new WebViewBridgeService();
+			_viewModel.BridgeService = _bridgeService;
 			
 			BindingContext = _viewModel;
 			
-			// Bind UI elements to ViewModel - with null checks
+			// Bind UI elements to ViewModel
 			if (ChatEntry != null)
 				ChatEntry.SetBinding(Entry.TextProperty, nameof(MainViewModel.ChatInput));
 			if (StatusLabel != null)
 				StatusLabel.SetBinding(Label.TextProperty, nameof(MainViewModel.StatusMessage));
-			if (ChatHistoryView != null)
-				ChatHistoryView.SetBinding(ItemsView.ItemsSourceProperty, nameof(MainViewModel.ChatHistory));
 			
 			// Initialize map when loaded
 			Loaded += OnPageLoaded;
+			
+			// Setup bridge event handlers
+			SetupBridgeHandlers();
 		}
 		catch (Exception ex)
 		{
@@ -36,34 +41,182 @@ public partial class MainPage : ContentPage
 		}
 	}
 	
-	private void OnPageLoaded(object? sender, EventArgs e)
+	private void SetupBridgeHandlers()
+	{
+		if (_bridgeService == null) return;
+		
+		_bridgeService.MapReady += (s, e) =>
+		{
+			Dispatcher.Dispatch(() =>
+			{
+				StatusLabel.Text = "Map ready";
+				AddChatMessage("System", "Map loaded and ready");
+			});
+		};
+		
+		_bridgeService.FeatureClick += (s, e) =>
+		{
+			Dispatcher.Dispatch(() =>
+			{
+				StatusLabel.Text = $"Clicked feature: {e.FeatureId}";
+				AddChatMessage("Map", $"Feature clicked: {e.FeatureId} at [{e.Coordinates[0]:F4}, {e.Coordinates[1]:F4}]");
+			});
+		};
+		
+		_bridgeService.MapClick += (s, e) =>
+		{
+			Dispatcher.Dispatch(() =>
+			{
+				StatusLabel.Text = $"Map clicked: [{e.Coordinates[0]:F4}, {e.Coordinates[1]:F4}]";
+			});
+		};
+		
+		_bridgeService.PolygonDrawn += (s, e) =>
+		{
+			Dispatcher.Dispatch(() =>
+			{
+				StatusLabel.Text = $"Polygon drawn with {e.Coordinates.Count} points";
+				AddChatMessage("Map", $"Polygon drawn: {e.Coordinates.Count} points, area: {e.Area:F2}");
+				_isDrawingMode = false;
+				DrawPolygonButton.BackgroundColor = Color.FromRgb(0x27, 0xAE, 0x60);
+			});
+		};
+	}
+	
+	private async void OnPageLoaded(object? sender, EventArgs e)
 	{
 		try
 		{
-			if (MapView?.Map != null && _viewModel != null)
+			if (MapWebView == null || _bridgeService == null) return;
+			
+			// Load the map HTML from resources
+			var htmlSource = new HtmlWebViewSource();
+			try
 			{
-				// Delay initialization slightly to ensure everything is ready
-				Dispatcher.Dispatch(() =>
-				{
-					try
-					{
-						_viewModel.InitializeMap(MapView.Map);
-					}
-					catch (Exception ex)
-					{
-						System.Diagnostics.Debug.WriteLine($"Map Init Error: {ex}");
-						DisplayAlert("Map Error", $"Could not initialize map: {ex.Message}", "OK");
-					}
-				});
+				using var stream = await FileSystem.OpenAppPackageFileAsync("map.html");
+				using var reader = new StreamReader(stream);
+				var html = await reader.ReadToEndAsync();
+				htmlSource.Html = html;
 			}
+			catch
+			{
+				// Fallback: use inline HTML if file not found
+				htmlSource.Html = GetInlineMapHtml();
+			}
+			
+			MapWebView.Source = htmlSource;
+			_bridgeService.SetWebView(MapWebView);
+			
+			// Setup platform-specific message handling
+			SetupPlatformMessageHandling();
+			
+			// Start polling for messages (for platforms without direct message handlers)
+			StartMessagePolling();
+			
+			StatusLabel.Text = "Loading map...";
 		}
 		catch (Exception ex)
 		{
 			System.Diagnostics.Debug.WriteLine($"OnPageLoaded Error: {ex}");
+			StatusLabel.Text = $"Error loading map: {ex.Message}";
 		}
 	}
 	
-	private void OnImportClicked(object sender, EventArgs e)
+	private string GetInlineMapHtml()
+	{
+		// Return a minimal HTML if file loading fails
+		// This is a fallback - the actual HTML should be loaded from Resources/Raw/map.html
+		return @"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <title>Map</title>
+    <script src='https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js'></script>
+    <link href='https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css' rel='stylesheet' />
+    <script src='https://unpkg.com/@maplibre/maplibre-gl-draw@1.3.0/dist/maplibre-gl-draw.js'></script>
+    <link href='https://unpkg.com/@maplibre/maplibre-gl-draw@1.3.0/dist/maplibre-gl-draw.css' rel='stylesheet' />
+    <style>body { margin: 0; } #map { width: 100%; height: 100vh; }</style>
+</head>
+<body>
+    <div id='map'></div>
+    <script>
+        const map = new maplibregl.Map({ container: 'map', style: 'https://demotiles.maplibre.org/style.json', center: [-95.37, 29.76], zoom: 10 });
+        const draw = new MapLibreDraw({ displayControlsDefault: false, controls: { polygon: true, trash: true } });
+        map.addControl(draw);
+        window.mapBridge = { addLayer: () => {}, removeLayer: () => {}, setLayerStyle: () => {}, zoomToBounds: () => {}, setDrawingMode: () => {} };
+        window.mapMessageQueue = [];
+        window.getMapMessages = () => { const m = window.mapMessageQueue.slice(); window.mapMessageQueue = []; return JSON.stringify(m); };
+        function postMessageToCSharp(msg) { window.mapMessageQueue.push(JSON.stringify(msg)); if (window.mapMessageQueue.length > 100) window.mapMessageQueue.shift(); }
+        map.on('load', () => postMessageToCSharp({ type: 'mapReady' }));
+        map.on('click', (e) => { const f = map.queryRenderedFeatures(e.point); if (f.length > 0) postMessageToCSharp({ type: 'featureClick', featureId: f[0].properties?.id || 'unknown', coordinates: [e.lngLat.lng, e.lngLat.lat], properties: f[0].properties }); else postMessageToCSharp({ type: 'mapClick', coordinates: [e.lngLat.lng, e.lngLat.lat] }); });
+        map.on('draw.create', (e) => { const c = e.features[0].geometry.coordinates[0]; postMessageToCSharp({ type: 'polygonDrawn', coordinates: c }); });
+    </script>
+</body>
+</html>";
+	}
+	
+	private void StartMessagePolling()
+	{
+		_messagePollTimer = new System.Timers.Timer(100); // Poll every 100ms
+		_messagePollTimer.Elapsed += async (s, e) =>
+		{
+			if (MapWebView == null || _bridgeService == null) return;
+			
+			try
+			{
+				// Get messages from JavaScript queue
+				var result = await MapWebView.EvaluateJavaScriptAsync("window.getMapMessages ? window.getMapMessages() : '[]'");
+				
+				if (!string.IsNullOrEmpty(result) && result != "[]" && result != "null")
+				{
+					// Parse messages array
+					var messages = JsonSerializer.Deserialize<string[]>(result);
+					if (messages != null)
+					{
+						foreach (var message in messages)
+						{
+							Dispatcher.Dispatch(() =>
+							{
+								_bridgeService?.HandleMessage(message);
+							});
+						}
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				// Silently handle errors - polling will continue
+				System.Diagnostics.Debug.WriteLine($"Message polling error: {ex.Message}");
+			}
+		};
+		_messagePollTimer.Start();
+	}
+	
+	private void SetupPlatformMessageHandling()
+	{
+#if WINDOWS
+		MapWebView.WebMessageReceived += (s, e) =>
+		{
+			if (_bridgeService != null)
+			{
+				_bridgeService.HandleMessage(e.WebMessageAsJson);
+			}
+		};
+#elif MACCATALYST || IOS
+		// For iOS/MacCatalyst, we'll use a polling approach or JavaScript injection
+		// The HTML page will use console.log which we can capture
+		// For now, we'll rely on JavaScript evaluation callbacks
+#elif ANDROID
+		// Android WebView message handling would go here
+		// For now, we'll use JavaScript evaluation
+#endif
+		
+		// Alternative: Use JavaScript to call back to C# via EvaluateJavaScriptAsync
+		// This requires injecting a callback function that C# can poll or listen to
+	}
+	
+	private async void OnImportClicked(object sender, EventArgs e)
 	{
 		try
 		{
@@ -72,14 +225,20 @@ public partial class MainPage : ContentPage
 		}
 		catch (Exception ex)
 		{
-			DisplayAlert("Error", ex.Message, "OK");
+			await DisplayAlert("Error", ex.Message, "OK");
 		}
 	}
 	
-	private void OnSendCommand(object sender, EventArgs e)
+	private async void OnSendCommand(object sender, EventArgs e)
 	{
 		try
 		{
+			if (ChatEntry != null && !string.IsNullOrWhiteSpace(ChatEntry.Text))
+			{
+				AddChatMessage("You", ChatEntry.Text);
+				ChatEntry.Text = string.Empty;
+			}
+			
 			if (_viewModel?.SendCommandCommand?.CanExecute(null) == true)
 			{
 				_viewModel.SendCommandCommand.Execute(null);
@@ -87,11 +246,11 @@ public partial class MainPage : ContentPage
 		}
 		catch (Exception ex)
 		{
-			DisplayAlert("Error", ex.Message, "OK");
+			await DisplayAlert("Error", ex.Message, "OK");
 		}
 	}
 	
-	private void OnExportClicked(object sender, EventArgs e)
+	private async void OnExportClicked(object sender, EventArgs e)
 	{
 		try
 		{
@@ -102,16 +261,23 @@ public partial class MainPage : ContentPage
 		}
 		catch (Exception ex)
 		{
-			DisplayAlert("Error", ex.Message, "OK");
+			await DisplayAlert("Error", ex.Message, "OK");
 		}
 	}
 	
-	private async void OnHelpClicked(object sender, EventArgs e)
+	private async void OnDrawPolygonClicked(object sender, EventArgs e)
 	{
 		try
 		{
-			var helpMessage = _chatService?.GetHelpMessage() ?? "Help not available";
-			await DisplayAlert("Available Commands", helpMessage, "OK");
+			_isDrawingMode = !_isDrawingMode;
+			if (_bridgeService != null)
+			{
+				await _bridgeService.SetDrawingModeAsync(_isDrawingMode);
+				DrawPolygonButton.BackgroundColor = _isDrawingMode 
+					? Color.FromRgb(0xE7, 0x4C, 0x3C) 
+					: Color.FromRgb(0x27, 0xAE, 0x60);
+				StatusLabel.Text = _isDrawingMode ? "Drawing mode: Click to draw polygon" : "Drawing mode disabled";
+			}
 		}
 		catch (Exception ex)
 		{
@@ -119,16 +285,148 @@ public partial class MainPage : ContentPage
 		}
 	}
 	
-	private void OnCloseHistory(object sender, EventArgs e)
+	private async void OnZoomToFitClicked(object sender, EventArgs e)
 	{
 		try
 		{
-			if (ChatHistoryPanel != null)
-				ChatHistoryPanel.IsVisible = false;
+			// Zoom to sample data bounds (Houston area)
+			if (_bridgeService != null)
+			{
+				await _bridgeService.ZoomToBoundsAsync(-95.39, 29.74, -95.35, 29.78);
+				StatusLabel.Text = "Zoomed to fit";
+			}
 		}
 		catch (Exception ex)
 		{
-			System.Diagnostics.Debug.WriteLine($"OnCloseHistory Error: {ex}");
+			await DisplayAlert("Error", ex.Message, "OK");
 		}
+	}
+	
+	private async void OnTestButtonClicked(object sender, EventArgs e)
+	{
+		try
+		{
+			if (_bridgeService == null) return;
+			
+			// Load sample GeoJSON
+			using var stream = await FileSystem.OpenAppPackageFileAsync("sample_polygons.geojson");
+			using var reader = new StreamReader(stream);
+			var geojson = await reader.ReadToEndAsync();
+			
+			// Add layer to map
+			var success = await _bridgeService.AddLayerAsync("test-polygons", geojson, new Dictionary<string, object>
+			{
+				{ "fill-color", "#3bb2d0" },
+				{ "fill-opacity", 0.5 },
+				{ "stroke-color", "#1e90ff" },
+				{ "stroke-width", 2 }
+			});
+			
+			if (success)
+			{
+				StatusLabel.Text = "Test GeoJSON loaded";
+				AddChatMessage("System", "Test GeoJSON layer added to map");
+				
+				// Add to layers panel
+				AddLayerToPanel("test-polygons", "Test Polygons", true);
+			}
+			else
+			{
+				StatusLabel.Text = "Failed to load test GeoJSON";
+			}
+		}
+		catch (Exception ex)
+		{
+			await DisplayAlert("Error", $"Failed to load test data: {ex.Message}", "OK");
+		}
+	}
+	
+	private void AddChatMessage(string sender, string message)
+	{
+		if (ChatHistoryStack == null) return;
+		
+		var label = new Label
+		{
+			Text = $"{sender}: {message}",
+			TextColor = sender == "You" ? Color.FromRgb(0xE0, 0xE0, 0xE0) : Color.FromRgb(0x95, 0xA5, 0xA6),
+			FontSize = 11,
+			Margin = new Thickness(0, 2, 0, 2),
+			LineBreakMode = LineBreakMode.WordWrap
+		};
+		
+		ChatHistoryStack.Children.Add(label);
+		
+		// Scroll to bottom
+		Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(100), () =>
+		{
+			// ScrollView will auto-scroll if content changes
+		});
+	}
+	
+	private void AddLayerToPanel(string layerId, string layerName, bool isVisible)
+	{
+		if (LayersStack == null) return;
+		
+		var layerFrame = new Frame
+		{
+			BackgroundColor = Color.FromRgb(0x1a, 0x1a, 0x1a),
+			BorderColor = Color.FromRgb(0x3d, 0x3d, 0x3d),
+			CornerRadius = 4,
+			Padding = 8,
+			Margin = new Thickness(0, 0, 0, 4)
+		};
+		
+		var layerGrid = new Grid
+		{
+			ColumnDefinitions = new ColumnDefinitionCollection
+			{
+				new ColumnDefinition { Width = GridLength.Star },
+				new ColumnDefinition { Width = GridLength.Auto }
+			}
+		};
+		
+		var nameLabel = new Label
+		{
+			Text = layerName,
+			TextColor = Color.FromRgb(0xE0, 0xE0, 0xE0),
+			FontSize = 12,
+			VerticalOptions = LayoutOptions.Center
+		};
+		
+		var visibilitySwitch = new Switch
+		{
+			IsToggled = isVisible,
+			OnColor = Color.FromRgb(0x27, 0xAE, 0x60),
+			VerticalOptions = LayoutOptions.Center
+		};
+		
+		visibilitySwitch.Toggled += async (s, e) =>
+		{
+			// Toggle layer visibility
+			if (_bridgeService != null)
+			{
+				if (e.Value)
+				{
+					// Show layer - would need to re-add or change opacity
+				}
+				else
+				{
+					// Hide layer - set opacity to 0
+					await _bridgeService.SetLayerStyleAsync(layerId, new Dictionary<string, object>
+					{
+						{ "fill-opacity", 0 },
+						{ "line-opacity", 0 }
+					});
+				}
+			}
+		};
+		
+		Grid.SetColumn(nameLabel, 0);
+		Grid.SetColumn(visibilitySwitch, 1);
+		layerGrid.Children.Add(nameLabel);
+		layerGrid.Children.Add(visibilitySwitch);
+		
+		layerFrame.Content = layerGrid;
+		LayersStack.Children.Add(layerFrame);
 	}
 }
