@@ -62,17 +62,3 @@ public class WellDataService
         return wells.Where(predicate).ToList();
     }
 }
-
-public class WellCsvRecord
-{
-    public string? Id { get; set; }
-    public string? Name { get; set; }
-    public double Latitude { get; set; }
-    public double Longitude { get; set; }
-    public string? Status { get; set; }
-    public double OilRate { get; set; }
-    public double WaterRate { get; set; }
-    public double GasRate { get; set; }
-    public double Watercut { get; set; }
-    public string? Field { get; set; }
-}
