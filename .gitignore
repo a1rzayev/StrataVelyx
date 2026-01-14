@@ -163,6 +163,13 @@ TestResults/
 *.coverage
 *.coveragexml
 
+## Sample Data (exclude from repository)
+SampleData/
+**/SampleData/**
+*.sample.csv
+*.sample.geojson
+*.sample.json
+
 ## Temporary files
 *.tmp
 *.temp
