@@ -1,0 +1,197 @@
+## .NET / MAUI Build outputs
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+
+## Visual Studio cache/options
+.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+## Rider
+.idea/
+*.sln.iml
+
+## Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## NuGet Packages
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+*.nuget.props
+*.nuget.targets
+.nuget/
+
+## MAUI specific
+*.app
+*.ipa
+*.apk
+*.aab
+*.dll
+*.exe
+*.pdb
+*.cache
+
+## Android
+*.ap_
+*.apk
+*.aab
+*.dex
+*.class
+bin/
+gen/
+out/
+.gradle/
+local.properties
+*.iml
+*.hprof
+*.keystore
+!debug.keystore
+proguard/
+
+## iOS / MacCatalyst
+*.dSYM.zip
+*.dSYM
+*.ipa
+*.app.dSYM
+*.app
+*.mdb
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.moved-aside
+DerivedData/
+*.hmap
+*.ipa
+*.xcuserstate
+project.xcworkspace/
+!default.xcworkspace
+*.xcworkspace/contents.xcworkspacedata
+*.xcworkspace/xcshareddata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+ios/.vs/
+ios/bin/
+ios/obj/
+maccatalyst/.vs/
+maccatalyst/bin/
+maccatalyst/obj/
+
+## Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+AppPackages/
+BundleArtifacts/
+Package.StoreAssociation.xml
+_packaging/
+*.appx
+*.appxbundle
+*.appxupload
+*.cer
+*.pfx
+*.p12
+
+## Linux
+*~
+.directory
+.Trash-*
+
+## macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+## Test results
+TestResults/
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+## Temporary files
+*.tmp
+*.temp
+*.swp
+*~
+*.bak
+*.cache
+
+## Logs
+*.log
+logs/
+
+## Environment variables
+.env
+.env.local
+.env.*.local
+
+## Package manager lock files (uncomment if you want to ignore)
+# package-lock.json
+# yarn.lock
+
+## Other
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.opendb
+*.opensdf
+*.sdf
+*.cachefile
+*.VC.db
+*.VC.VC.opendb
