@@ -301,6 +301,21 @@ public partial class MainPage : ContentPage
 		}
 	}
 	
+	private async void OnBasemapClicked(object sender, EventArgs e)
+	{
+		try
+		{
+			if (_bridgeService != null)
+			{
+				await _bridgeService.ToggleBasemapSelectorAsync();
+			}
+		}
+		catch (Exception ex)
+		{
+			await DisplayAlert("Error", ex.Message, "OK");
+		}
+	}
+	
 	private async void OnSendCommand(object sender, EventArgs e)
 	{
 		try
@@ -509,7 +524,7 @@ public partial class MainPage : ContentPage
 						{ "fill-opacity", 0 },
 						{ "line-opacity", 0 }
 					});
-				}
+		}
 			}
 		};
 		

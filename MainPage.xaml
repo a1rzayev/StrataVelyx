@@ -2,7 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="StrataVelyx.MainPage"
-             Title="StrataVelyx - Reservoir GIS"
+             Title="WorldMap"
              BackgroundColor="#1a1a1a">
 
     <Grid ColumnDefinitions="250,*,300" RowDefinitions="Auto,*" Padding="0">
@@ -13,7 +13,7 @@
                 Stroke="#3d3d3d"
                 StrokeThickness="0,0,0,1"
                 Padding="8,6">
-            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
+            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
                 <!-- Project buttons -->
                 <Button Grid.Column="0"
                         Text="📋 New"
@@ -40,7 +40,7 @@
                         FontSize="11"
                         HeightRequest="32"
                         BackgroundColor="#1976D2"
-                        TextColor="White"
+                   TextColor="White"
                         CornerRadius="4"
                         Padding="8,0"
                         Clicked="OnLoadProjectClicked" />
@@ -66,6 +66,17 @@
                         Clicked="OnImportClicked" />
                 
                 <Button Grid.Column="5"
+                        x:Name="BasemapButton"
+                        Text="🗺️ Basemap"
+                        FontSize="11"
+                        HeightRequest="32"
+                        BackgroundColor="#9C27B0"
+                        TextColor="White"
+                        CornerRadius="4"
+                        Padding="8,0"
+                        Clicked="OnBasemapClicked" />
+                
+                <Button Grid.Column="6"
                         x:Name="DrawPolygonButton"
                         Text="✏️ Draw"
                         FontSize="11"
@@ -76,7 +87,7 @@
                         Padding="8,0"
                         Clicked="OnDrawPolygonClicked" />
                 
-                <Button Grid.Column="6"
+                <Button Grid.Column="7"
                         x:Name="ExportButton"
                         Text="💾 Export"
                         FontSize="11"
@@ -105,7 +116,7 @@
                 StrokeThickness="0,0,1,0">
             <Grid RowDefinitions="Auto,*,Auto" Padding="8">
                 <!-- Layers Header -->
-                <Label Grid.Row="0"
+                <Label Grid.Row="0" 
                        Text="Layers"
                        TextColor="#E0E0E0"
                        FontSize="14"
@@ -135,7 +146,7 @@
                             FontSize="11"
                             HeightRequest="32"
                             BackgroundColor="#512BD4"
-                            TextColor="White"
+                        TextColor="White"
                             CornerRadius="4"
                             Clicked="OnTestButtonClicked" />
                 </StackLayout>
@@ -159,7 +170,7 @@
                        Text="Chat / Commands"
                        TextColor="#E0E0E0"
                        FontSize="14"
-                       FontAttributes="Bold"
+                FontAttributes="Bold"
                        Margin="0,0,0,8" />
                 
                 <!-- Chat History -->
@@ -193,7 +204,7 @@
                             FontSize="11"
                             HeightRequest="36"
                             BackgroundColor="#27AE60"
-                            TextColor="White"
+                TextColor="White"
                             CornerRadius="4"
                             Padding="12,0"
                             Clicked="OnSendCommand" />

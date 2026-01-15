@@ -26,16 +26,93 @@
             top: 10px;
             right: 10px;
         }
+        .maplibregl-ctrl-bottom-right {
+            bottom: 20px;
+            right: 10px;
+        }
+        .maplibregl-ctrl-bottom-left {
+            bottom: 20px;
+            left: 10px;
+        }
+        
+        /* Coordinate display */
+        .coordinate-display {
+            background: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        /* North arrow */
+        .north-arrow {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid #333;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        /* Basemap selector */
+        .basemap-selector {
+            background: white;
+            border-radius: 4px;
+            padding: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            min-width: 200px;
+        }
+        .basemap-option {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 3px;
+            margin: 2px 0;
+            font-size: 13px;
+        }
+        .basemap-option:hover {
+            background: #f0f0f0;
+        }
+        .basemap-option.active {
+            background: #1976D2;
+            color: white;
+        }
     </style>
 </head>
 <body>
     <div id="map"></div>
+    
+    <!-- Coordinate Display -->
+    <div id="coordinates" class="coordinate-display" style="position: absolute; bottom: 20px; left: 10px;">
+        Lat: 0.0000° | Lon: 0.0000° | Zoom: 2
+    </div>
+    
+    <!-- North Arrow -->
+    <div id="north-arrow" class="north-arrow" style="position: absolute; top: 50px; right: 10px;">
+        ↑
+    </div>
+    
+    <!-- Basemap Selector -->
+    <div id="basemap-selector" class="basemap-selector" style="position: absolute; top: 50px; left: 10px; display: none;">
+        <div style="font-weight: bold; margin-bottom: 8px; padding: 4px;">Base Maps</div>
+        <div class="basemap-option active" data-style="osm">🗺️ OpenStreetMap</div>
+        <div class="basemap-option" data-style="satellite">🛰️ Satellite</div>
+        <div class="basemap-option" data-style="topo">⛰️ Topographic</div>
+        <div class="basemap-option" data-style="dark">🌙 Dark</div>
+        <div class="basemap-option" data-style="light">☀️ Light</div>
+        <div class="basemap-option" data-style="custom">⚙️ Custom Tiles</div>
+    </div>
+    
     <script>
-        // Initialize map with global OpenStreetMap tiles
-        // Covers entire world - zoom anywhere from 0 (world) to 19 (street level)
-        const map = new maplibregl.Map({
-            container: 'map',
-            style: {
+        // Basemap styles
+        const basemapStyles = {
+            osm: {
                 version: 8,
                 sources: {
                     'osm': {
@@ -55,23 +132,243 @@
                     source: 'osm',
                     minzoom: 0,
                     maxzoom: 19
-                }],
+                }]
+            },
+            satellite: {
+                version: 8,
+                sources: {
+                    'satellite': {
+                        type: 'raster',
+                        tiles: [
+                            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                        ],
+                        tileSize: 256,
+                        attribution: '© Esri, Maxar, GeoEye, Earthstar Geographics'
+                    }
+                },
+                layers: [{
+                    id: 'satellite',
+                    type: 'raster',
+                    source: 'satellite',
+                    minzoom: 0,
+                    maxzoom: 19
+                }]
+            },
+            topo: {
+                version: 8,
+                sources: {
+                    'topo': {
+                        type: 'raster',
+                        tiles: [
+                            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}'
+                        ],
+                        tileSize: 256,
+                        attribution: '© Esri'
+                    }
+                },
+                layers: [{
+                    id: 'topo',
+                    type: 'raster',
+                    source: 'topo',
+                    minzoom: 0,
+                    maxzoom: 19
+                }]
+            },
+            dark: {
+                version: 8,
+                sources: {
+                    'carto-dark': {
+                        type: 'raster',
+                        tiles: [
+                            'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+                            'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+                            'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+                        ],
+                        tileSize: 256,
+                        attribution: '© CARTO'
+                    }
+                },
+                layers: [{
+                    id: 'carto-dark',
+                    type: 'raster',
+                    source: 'carto-dark',
+                    minzoom: 0,
+                    maxzoom: 19
+                }]
+            },
+            light: {
+                version: 8,
+                sources: {
+                    'carto-light': {
+                        type: 'raster',
+                        tiles: [
+                            'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+                            'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+                            'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
+                        ],
+                        tileSize: 256,
+                        attribution: '© CARTO'
+                    }
+                },
+                layers: [{
+                    id: 'carto-light',
+                    type: 'raster',
+                    source: 'carto-light',
+                    minzoom: 0,
+                    maxzoom: 19
+                }]
+            },
+            custom: {
+                version: 8,
+                sources: {
+                    'custom': {
+                        type: 'raster',
+                        tiles: [
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+                        ],
+                        tileSize: 256,
+                        attribution: 'Custom tiles'
+                    }
+                },
+                layers: [{
+                    id: 'custom',
+                    type: 'raster',
+                    source: 'custom',
+                    minzoom: 0,
+                    maxzoom: 19
+                }]
+            }
+        };
+        
+        // Initialize map with OpenStreetMap
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                ...basemapStyles.osm,
                 glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf'
             },
             center: [0, 20], // Global view
             zoom: 2, // World zoom level
             maxZoom: 19,
-            minZoom: 0
+            minZoom: 0,
+            pitch: 0,
+            bearing: 0
         });
         
-        // Add navigation controls
-        map.addControl(new maplibregl.NavigationControl(), 'top-right');
+        // Add navigation controls (pan, zoom, rotate)
+        map.addControl(new maplibregl.NavigationControl({
+            showCompass: true,
+            showZoom: true,
+            visualizePitch: true
+        }), 'top-right');
         
-        // Add scale control
+        // Add scale control with metric and imperial
         map.addControl(new maplibregl.ScaleControl({
             maxWidth: 200,
             unit: 'metric'
         }), 'bottom-left');
+        
+        // Update coordinate display on mouse move
+        const coordDisplay = document.getElementById('coordinates');
+        map.on('mousemove', function(e) {
+            const lng = e.lngLat.lng.toFixed(4);
+            const lat = e.lngLat.lat.toFixed(4);
+            const zoom = map.getZoom().toFixed(2);
+            
+            // Convert to UTM (simplified - zone 15N for example)
+            const utm = latLonToUTM(e.lngLat.lat, e.lngLat.lng);
+            
+            coordDisplay.innerHTML = `
+                <div>Lat: ${lat}° | Lon: ${lng}°</div>
+                <div>UTM: ${utm.easting.toFixed(0)}E ${utm.northing.toFixed(0)}N (Zone ${utm.zone})</div>
+                <div>Zoom: ${zoom}</div>
+            `;
+        });
+        
+        // Update north arrow rotation based on map bearing
+        const northArrow = document.getElementById('north-arrow');
+        map.on('rotate', function() {
+            const bearing = map.getBearing();
+            northArrow.style.transform = `rotate(${-bearing}deg)`;
+        });
+        
+        // Basemap switching
+        const basemapSelector = document.getElementById('basemap-selector');
+        const basemapOptions = basemapSelector.querySelectorAll('.basemap-option');
+        
+        basemapOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                const styleName = this.getAttribute('data-style');
+                
+                // Update active state
+                basemapOptions.forEach(opt => opt.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Switch basemap
+                const newStyle = {
+                    ...basemapStyles[styleName],
+                    glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf'
+                };
+                
+                map.setStyle(newStyle);
+                
+                // Re-add layers after style change
+                map.once('style.load', function() {
+                    // Re-add any custom layers if needed
+                    if (window.mapBridge && window.mapBridge.layers) {
+                        Object.keys(window.mapBridge.layers).forEach(layerId => {
+                            const layer = window.mapBridge.layers[layerId];
+                            window.mapBridge.addLayer(layerId, layer.geojson, layer.style);
+                        });
+                    }
+                });
+            });
+        });
+        
+        // Toggle basemap selector (can be triggered from C#)
+        window.toggleBasemapSelector = function() {
+            const isVisible = basemapSelector.style.display !== 'none';
+            basemapSelector.style.display = isVisible ? 'none' : 'block';
+        };
+        
+        // Function to convert Lat/Lon to UTM
+        function latLonToUTM(lat, lon) {
+            // Simplified UTM conversion (zone 15N as default)
+            // For production, use a proper library like proj4js
+            const zone = Math.floor((lon + 180) / 6) + 1;
+            const zoneLetter = lat >= 0 ? 'N' : 'S';
+            
+            // Simplified calculation (not precise, but shows concept)
+            const k0 = 0.9996;
+            const a = 6378137; // WGS84 semi-major axis
+            const e2 = 0.00669438; // WGS84 first eccentricity squared
+            
+            const n = (a - 6356752.314) / (a + 6356752.314);
+            const A = a * (1 - n + (5/4) * (n*n - n*n*n));
+            
+            const latRad = lat * Math.PI / 180;
+            const lonRad = lon * Math.PI / 180;
+            const lon0 = ((zone - 1) * 6 - 180 + 3) * Math.PI / 180;
+            
+            const N = a / Math.sqrt(1 - e2 * Math.sin(latRad) * Math.sin(latRad));
+            const T = Math.tan(latRad) * Math.tan(latRad);
+            const C = e2 * Math.cos(latRad) * Math.cos(latRad) / (1 - e2);
+            const A2 = Math.cos(latRad) * (lonRad - lon0);
+            
+            const M = a * ((1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256) * latRad
+                - (3*e2/8 + 3*e2*e2/32 + 45*e2*e2*e2/1024) * Math.sin(2*latRad)
+                + (15*e2*e2/256 + 45*e2*e2*e2/1024) * Math.sin(4*latRad)
+                - (35*e2*e2*e2/3072) * Math.sin(6*latRad));
+            
+            const x = k0 * N * (A2 + (1-T+C)*A2*A2*A2/6 + (5-18*T+T*T+72*C-58)*A2*A2*A2*A2*A2/120) + 500000;
+            const y = k0 * (M + N*Math.tan(latRad) * (A2*A2/2 + (5-T+9*C+4*C*C)*A2*A2*A2*A2/24 + (61-58*T+T*T+600*C-330)*A2*A2*A2*A2*A2*A2/720));
+            
+            return {
+                easting: x,
+                northing: y,
+                zone: zone + zoneLetter
+            };
+        }
 
         // Initialize Draw control
         const draw = new MapLibreDraw({
@@ -87,26 +384,53 @@
         const layers = new Map();
 
         // Bridge object for C# communication
-            // Add function to set map center and zoom (for project loading)
-            window.setMapView = function(lon, lat, zoom) {
-                map.flyTo({
-                    center: [lon, lat],
-                    zoom: zoom,
-                    duration: 2000
-                });
-            };
-            
-            // Add function to get current map view (for project saving)
-            window.getMapView = function() {
+        window.mapBridge = {
+            // Get current map view (for project saving)
+            getMapView: function() {
                 const center = map.getCenter();
                 return {
                     longitude: center.lng,
                     latitude: center.lat,
-                    zoom: map.getZoom()
+                    zoom: map.getZoom(),
+                    bearing: map.getBearing(),
+                    pitch: map.getPitch()
                 };
-            };
+            },
             
-            window.mapBridge = {
+            // Set map view (for project loading)
+            setMapView: function(lon, lat, zoom, bearing, pitch) {
+                map.flyTo({
+                    center: [lon, lat],
+                    zoom: zoom || 2,
+                    bearing: bearing || 0,
+                    pitch: pitch || 0,
+                    duration: 2000
+                });
+            },
+            
+            // Switch basemap
+            setBasemap: function(basemapName) {
+                const option = document.querySelector(`[data-style="${basemapName}"]`);
+                if (option) {
+                    option.click();
+                }
+            },
+            
+            // Toggle basemap selector
+            toggleBasemapSelector: function() {
+                toggleBasemapSelector();
+            },
+            
+            // Get current coordinates at center
+            getCenterCoordinates: function() {
+                const center = map.getCenter();
+                const utm = latLonToUTM(center.lat, center.lng);
+                return {
+                    lat: center.lat,
+                    lon: center.lng,
+                    utm: utm
+                };
+            },
             // C# → JS: Add GeoJSON layer
             addLayer: function(layerId, geojson, style) {
                 try {
