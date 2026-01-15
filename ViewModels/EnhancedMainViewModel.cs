@@ -154,7 +154,7 @@ public class EnhancedMainViewModel : INotifyPropertyChanged
                     await DisplayWellsOnMapAsync(_filteredWells);
                     
                     // Add layer
-                    AddLayer("Wells", "Point", _allWells.Count, true);
+                    AddLayer("wells", "Wells", "Point", "Wells", _allWells.Count, true);
                     
                     // Zoom to extent
                     await ZoomToWellsAsync(_filteredWells);
@@ -221,8 +221,11 @@ public class EnhancedMainViewModel : INotifyPropertyChanged
                     // Display on map
                     await DisplayPolygonsOnMapAsync(_allPolygons);
                     
+                    // Determine group based on polygon type
+                    var group = DeterminePolygonGroup(_allPolygons);
+                    
                     // Add layer
-                    AddLayer("Polygons", "Polygon", _allPolygons.Count, true);
+                    AddLayer("polygons", "Polygons", "Polygon", group, _allPolygons.Count, true);
                     
                     // Zoom to extent
                     await ZoomToPolygonsAsync(_allPolygons);
@@ -470,15 +473,106 @@ public class EnhancedMainViewModel : INotifyPropertyChanged
         ChatHistory.Add($"[{DateTime.Now:HH:mm:ss}] {sender}: {message}");
     }
     
-    private void AddLayer(string name, string type, int featureCount, bool visible)
+    public void AddLayer(string layerId, string name, string type, string group, int featureCount, bool visible)
     {
         Layers.Add(new LayerInfo
         {
+            LayerId = layerId,
             Name = name,
             Type = type,
+            Group = group,
             FeatureCount = featureCount,
-            IsVisible = visible
+            IsVisible = visible,
+            Opacity = 1.0
         });
+    }
+    
+    /// <summary>
+    /// Toggle layer visibility
+    /// </summary>
+    public async Task ToggleLayerVisibilityAsync(string layerId, bool isVisible)
+    {
+        var layer = Layers.FirstOrDefault(l => l.LayerId == layerId);
+        if (layer == null || BridgeService == null) return;
+        
+        layer.IsVisible = isVisible;
+        
+        // Update map layer visibility
+        if (isVisible)
+        {
+            // Show layer by restoring opacity
+            await BridgeService.SetLayerOpacityAsync(layerId, layer.Opacity);
+        }
+        else
+        {
+            // Hide layer by setting opacity to 0
+            await BridgeService.SetLayerOpacityAsync(layerId, 0.0);
+        }
+    }
+    
+    /// <summary>
+    /// Set layer opacity
+    /// </summary>
+    public async Task SetLayerOpacityAsync(string layerId, double opacity)
+    {
+        var layer = Layers.FirstOrDefault(l => l.LayerId == layerId);
+        if (layer == null || BridgeService == null) return;
+        
+        layer.Opacity = opacity;
+        
+        // Only update map if layer is visible
+        if (layer.IsVisible)
+        {
+            await BridgeService.SetLayerOpacityAsync(layerId, opacity);
+        }
+    }
+    
+    /// <summary>
+    /// Determine the appropriate group for polygons based on their types
+    /// </summary>
+    private string DeterminePolygonGroup(List<FieldPolygon> polygons)
+    {
+        if (polygons.Count == 0) return "Geology";
+        
+        // Check for seismic-related polygons
+        var hasSeismic = polygons.Any(p => 
+            p.Type?.ToLower().Contains("seismic") == true ||
+            p.Name?.ToLower().Contains("seismic") == true);
+        
+        if (hasSeismic) return "Seismic";
+        
+        // Default to Geology for reservoirs, fields, licenses, leases, etc.
+        return "Geology";
+    }
+    
+    /// <summary>
+    /// Determine the appropriate group for line layers (faults, pipelines, seismic lines)
+    /// </summary>
+    private string DetermineLineGroup(string layerType, string? layerName = null)
+    {
+        var typeLower = layerType?.ToLower() ?? "";
+        var nameLower = layerName?.ToLower() ?? "";
+        
+        // Seismic lines
+        if (typeLower.Contains("seismic") || nameLower.Contains("seismic"))
+        {
+            return "Seismic";
+        }
+        
+        // Faults go to Geology
+        if (typeLower.Contains("fault") || nameLower.Contains("fault"))
+        {
+            return "Geology";
+        }
+        
+        // Pipelines could be infrastructure, but for now put in Geology
+        if (typeLower.Contains("pipeline") || nameLower.Contains("pipeline"))
+        {
+            return "Geology";
+        }
+        
+        // Default to Geology
+        return "Geology";
     }
     
     #region Project Management
@@ -643,9 +737,12 @@ public class EnhancedMainViewModel : INotifyPropertyChanged
 public class LayerInfo : INotifyPropertyChanged
 {
     private bool _isVisible = true;
+    private double _opacity = 1.0;
     
+    public string LayerId { get; set; } = "";
     public string Name { get; set; } = "";
-    public string Type { get; set; } = "";
+    public string Type { get; set; } = ""; // Point, Line, Polygon
+    public string Group { get; set; } = "Other"; // Wells, Geology, Seismic, Other
     public int FeatureCount { get; set; }
     
     public bool IsVisible
@@ -654,6 +751,16 @@ public class LayerInfo : INotifyPropertyChanged
         set
         {
             _isVisible = value;
+            OnPropertyChanged();
+        }
+    }
+    
+    public double Opacity
+    {
+        get => _opacity;
+        set
+        {
+            _opacity = Math.Clamp(value, 0.0, 1.0);
             OnPropertyChanged();
         }
     }

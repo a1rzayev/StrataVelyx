@@ -1,6 +1,7 @@
 using StrataVelyx.ViewModels;
 using StrataVelyx.Services;
 using System.Text.Json;
+using System.Collections.Specialized;
 
 namespace StrataVelyx;
 
@@ -34,6 +35,12 @@ public partial class MainPage : ContentPage
 			
 			// Setup bridge event handlers
 			SetupBridgeHandlers();
+			
+			// Subscribe to layers collection changes
+			if (_viewModel?.Layers != null)
+			{
+				_viewModel.Layers.CollectionChanged += OnLayersCollectionChanged;
+			}
 		}
 		catch (Exception ex)
 		{
@@ -249,10 +256,206 @@ public partial class MainPage : ContentPage
 		}
 	}
 	
+	private void OnLayersCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+	{
+		Dispatcher.Dispatch(() =>
+		{
+			RebuildLayersPanel();
+		});
+	}
+	
+	private void RebuildLayersPanel()
+	{
+		if (LayersStack == null || _viewModel == null) return;
+		
+		// Clear existing layers
+		LayersStack.Children.Clear();
+		
+		// Group layers by Group property
+		var groupedLayers = _viewModel.Layers
+			.GroupBy(l => l.Group)
+			.OrderBy(g => g.Key == "Wells" ? 0 : g.Key == "Geology" ? 1 : g.Key == "Seismic" ? 2 : 3);
+		
+		foreach (var group in groupedLayers)
+		{
+			// Add group header
+			var groupHeader = CreateGroupHeader(group.Key);
+			LayersStack.Children.Add(groupHeader);
+			
+			// Add layers in this group
+			foreach (var layer in group)
+			{
+				var layerControl = CreateLayerControl(layer);
+				LayersStack.Children.Add(layerControl);
+			}
+		}
+	}
+	
+	private View CreateGroupHeader(string groupName)
+	{
+		var headerFrame = new Frame
+		{
+			BackgroundColor = Color.FromRgb(0x2d, 0x2d, 0x2d),
+			BorderColor = Color.FromRgb(0x3d, 0x3d, 0x3d),
+			CornerRadius = 4,
+			Padding = new Thickness(8, 6),
+			Margin = new Thickness(0, 4, 0, 2)
+		};
+		
+		var headerLabel = new Label
+		{
+			Text = GetGroupIcon(groupName) + " " + groupName,
+			TextColor = Color.FromRgb(0xE0, 0xE0, 0xE0),
+			FontSize = 12,
+			FontAttributes = FontAttributes.Bold
+		};
+		
+		headerFrame.Content = headerLabel;
+		return headerFrame;
+	}
+	
+	private string GetGroupIcon(string groupName)
+	{
+		return groupName switch
+		{
+			"Wells" => "🛢️",
+			"Geology" => "⛰️",
+			"Seismic" => "📡",
+			_ => "📋"
+		};
+	}
+	
+	private View CreateLayerControl(LayerInfo layer)
+	{
+		var layerFrame = new Frame
+		{
+			BackgroundColor = Color.FromRgb(0x1a, 0x1a, 0x1a),
+			BorderColor = Color.FromRgb(0x3d, 0x3d, 0x3d),
+			CornerRadius = 4,
+			Padding = 8,
+			Margin = new Thickness(0, 0, 0, 4)
+		};
+		
+		var mainStack = new StackLayout { Spacing = 6 };
+		
+		// Top row: Name and visibility toggle
+		var topGrid = new Grid
+		{
+			ColumnDefinitions = new ColumnDefinitionCollection
+			{
+				new ColumnDefinition { Width = GridLength.Star },
+				new ColumnDefinition { Width = GridLength.Auto }
+			}
+		};
+		
+		var nameLabel = new Label
+		{
+			Text = GetLayerTypeIcon(layer.Type) + " " + layer.Name + $" ({layer.FeatureCount})",
+			TextColor = Color.FromRgb(0xE0, 0xE0, 0xE0),
+			FontSize = 11,
+			VerticalOptions = LayoutOptions.Center
+		};
+		
+		var visibilitySwitch = new Switch
+		{
+			IsToggled = layer.IsVisible,
+			OnColor = Color.FromRgb(0x27, 0xAE, 0x60),
+			VerticalOptions = LayoutOptions.Center
+		};
+		
+		visibilitySwitch.Toggled += async (s, e) =>
+		{
+			if (_viewModel != null)
+			{
+				await _viewModel.ToggleLayerVisibilityAsync(layer.LayerId, e.Value);
+			}
+		};
+		
+		Grid.SetColumn(nameLabel, 0);
+		Grid.SetColumn(visibilitySwitch, 1);
+		topGrid.Children.Add(nameLabel);
+		topGrid.Children.Add(visibilitySwitch);
+		
+		// Bottom row: Opacity slider
+		var opacityStack = new StackLayout { Orientation = StackOrientation.Horizontal, Spacing = 6 };
+		
+		var opacityLabel = new Label
+		{
+			Text = "Opacity:",
+			TextColor = Color.FromRgb(0x95, 0xA5, 0xA6),
+			FontSize = 10,
+			VerticalOptions = LayoutOptions.Center,
+			WidthRequest = 50
+		};
+		
+		var opacitySlider = new Slider
+		{
+			Minimum = 0,
+			Maximum = 1,
+			Value = layer.Opacity,
+			MinimumTrackColor = Color.FromRgb(0x27, 0xAE, 0x60),
+			MaximumTrackColor = Color.FromRgb(0x3d, 0x3d, 0x3d),
+			ThumbColor = Color.FromRgb(0x27, 0xAE, 0x60),
+			VerticalOptions = LayoutOptions.Center
+		};
+		
+		var opacityValueLabel = new Label
+		{
+			Text = $"{layer.Opacity:P0}",
+			TextColor = Color.FromRgb(0x95, 0xA5, 0xA6),
+			FontSize = 10,
+			VerticalOptions = LayoutOptions.Center,
+			WidthRequest = 35
+		};
+		
+		opacitySlider.ValueChanged += async (s, e) =>
+		{
+			opacityValueLabel.Text = $"{e.NewValue:P0}";
+			if (_viewModel != null)
+			{
+				await _viewModel.SetLayerOpacityAsync(layer.LayerId, e.NewValue);
+			}
+		};
+		
+		// Subscribe to layer property changes
+		layer.PropertyChanged += (s, e) =>
+		{
+			if (e.PropertyName == nameof(LayerInfo.Opacity))
+			{
+				opacitySlider.Value = layer.Opacity;
+				opacityValueLabel.Text = $"{layer.Opacity:P0}";
+			}
+			else if (e.PropertyName == nameof(LayerInfo.IsVisible))
+			{
+				visibilitySwitch.IsToggled = layer.IsVisible;
+			}
+		};
+		
+		opacityStack.Children.Add(opacityLabel);
+		opacityStack.Children.Add(opacitySlider);
+		opacityStack.Children.Add(opacityValueLabel);
+		
+		mainStack.Children.Add(topGrid);
+		mainStack.Children.Add(opacityStack);
+		
+		layerFrame.Content = mainStack;
+		return layerFrame;
+	}
+	
+	private string GetLayerTypeIcon(string type)
+	{
+		return type switch
+		{
+			"Point" => "📍",
+			"Line" => "📏",
+			"Polygon" => "⬛",
+			_ => "📄"
+		};
+	}
+	
 	private void UpdateLayersPanel()
 	{
-		// Layers are bound to ViewModel.Layers ObservableCollection
-		// This will update automatically via binding
+		RebuildLayersPanel();
 	}
 	
 	private async void OnNewProjectClicked(object sender, EventArgs e)
@@ -666,13 +869,13 @@ public partial class MainPage : ContentPage
 				{ "stroke-width", 2 }
 			});
 			
-			if (success)
+			if (success && _viewModel != null)
 			{
 				StatusLabel.Text = "Sample data loaded - Use Import to load your own data";
 				AddChatMessage("System", "Sample polygons loaded. Click Import to load real data.");
 				
-				// Add to layers panel
-				AddLayerToPanel("sample-polygons", "Sample Polygons (3)", true);
+				// Add layer to ViewModel
+				_viewModel.AddLayer("sample-polygons", "Sample Polygons", "Polygon", "Geology", 3, true);
 			}
 			else
 			{
@@ -707,70 +910,4 @@ public partial class MainPage : ContentPage
 		});
 	}
 	
-	private void AddLayerToPanel(string layerId, string layerName, bool isVisible)
-	{
-		if (LayersStack == null) return;
-		
-		var layerFrame = new Frame
-		{
-			BackgroundColor = Color.FromRgb(0x1a, 0x1a, 0x1a),
-			BorderColor = Color.FromRgb(0x3d, 0x3d, 0x3d),
-			CornerRadius = 4,
-			Padding = 8,
-			Margin = new Thickness(0, 0, 0, 4)
-		};
-		
-		var layerGrid = new Grid
-		{
-			ColumnDefinitions = new ColumnDefinitionCollection
-			{
-				new ColumnDefinition { Width = GridLength.Star },
-				new ColumnDefinition { Width = GridLength.Auto }
-			}
-		};
-		
-		var nameLabel = new Label
-		{
-			Text = layerName,
-			TextColor = Color.FromRgb(0xE0, 0xE0, 0xE0),
-			FontSize = 12,
-			VerticalOptions = LayoutOptions.Center
-		};
-		
-		var visibilitySwitch = new Switch
-		{
-			IsToggled = isVisible,
-			OnColor = Color.FromRgb(0x27, 0xAE, 0x60),
-			VerticalOptions = LayoutOptions.Center
-		};
-		
-		visibilitySwitch.Toggled += async (s, e) =>
-		{
-			// Toggle layer visibility
-			if (_bridgeService != null)
-			{
-				if (e.Value)
-				{
-					// Show layer - would need to re-add or change opacity
-				}
-				else
-				{
-					// Hide layer - set opacity to 0
-					await _bridgeService.SetLayerStyleAsync(layerId, new Dictionary<string, object>
-					{
-						{ "fill-opacity", 0 },
-						{ "line-opacity", 0 }
-					});
-		}
-			}
-		};
-		
-		Grid.SetColumn(nameLabel, 0);
-		Grid.SetColumn(visibilitySwitch, 1);
-		layerGrid.Children.Add(nameLabel);
-		layerGrid.Children.Add(visibilitySwitch);
-		
-		layerFrame.Content = layerGrid;
-		LayersStack.Children.Add(layerFrame);
-	}
 }

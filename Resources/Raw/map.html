@@ -568,6 +568,59 @@
                     return { success: false, message: error.message };
                 }
             },
+            
+            // C# → JS: Set layer opacity
+            setLayerOpacity: function(layerId, opacity) {
+                try {
+                    const layer = layers.get(layerId);
+                    if (!layer) {
+                        return { success: false, message: 'Layer not found' };
+                    }
+                    
+                    // Determine layer type and update appropriate opacity property
+                    const mainLayer = map.getLayer(layerId);
+                    if (!mainLayer) {
+                        return { success: false, message: 'Layer not found on map' };
+                    }
+                    
+                    // Update opacity based on layer type
+                    if (mainLayer.type === 'circle') {
+                        // Point layer
+                        map.setPaintProperty(layerId, 'circle-opacity', opacity);
+                        // Update stroke opacity if it exists
+                        const strokeLayer = map.getLayer(layerId + '-stroke');
+                        if (strokeLayer) {
+                            map.setPaintProperty(layerId + '-stroke', 'circle-stroke-opacity', opacity);
+                        }
+                    } else if (mainLayer.type === 'fill') {
+                        // Polygon layer
+                        map.setPaintProperty(layerId, 'fill-opacity', opacity);
+                        // Also update outline if it exists
+                        const outlineLayer = map.getLayer(layerId + '-outline');
+                        if (outlineLayer) {
+                            map.setPaintProperty(layerId + '-outline', 'line-opacity', opacity);
+                        }
+                    } else if (mainLayer.type === 'line') {
+                        // Line layer (could be standalone line or polygon outline)
+                        // Check if this is a polygon outline
+                        if (layerId.endsWith('-outline')) {
+                            map.setPaintProperty(layerId, 'line-opacity', opacity);
+                        } else {
+                            // Standalone line layer (faults, pipelines, etc.)
+                            map.setPaintProperty(layerId, 'line-opacity', opacity);
+                        }
+                    }
+                    
+                    // Store opacity in layer metadata
+                    if (layer) {
+                        layer.opacity = opacity;
+                    }
+                    
+                    return { success: true };
+                } catch (error) {
+                    return { success: false, message: error.message };
+                }
+            },
 
             // C# → JS: Zoom to bounds
             zoomToBounds: function(bounds) {

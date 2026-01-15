@@ -108,6 +108,25 @@ public class WebViewBridgeService
             return false;
         }
     }
+    
+    // C# → JS: Set layer opacity
+    public async Task<bool> SetLayerOpacityAsync(string layerId, double opacity)
+    {
+        if (_webView == null) return false;
+
+        var script = $@"window.mapBridge.setLayerOpacity('{layerId}', {opacity});";
+
+        try
+        {
+            await _webView.EvaluateJavaScriptAsync(script);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error setting layer opacity: {ex.Message}");
+            return false;
+        }
+    }
 
     // C# → JS: Zoom to bounds
     public async Task<bool> ZoomToBoundsAsync(double minLon, double minLat, double maxLon, double maxLat)
