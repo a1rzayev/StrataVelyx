@@ -78,7 +78,6 @@ public partial class MainPage : ContentPage
 				StatusLabel.Text = $"Polygon drawn with {e.Coordinates.Count} points";
 				AddChatMessage("Map", $"Polygon drawn: {e.Coordinates.Count} points, area: {e.Area:F2}");
 				_isDrawingMode = false;
-				DrawPolygonButton.BackgroundColor = Color.FromRgb(0x27, 0xAE, 0x60);
 			});
 		};
 	}
@@ -316,6 +315,247 @@ public partial class MainPage : ContentPage
 		}
 	}
 	
+	
+	private async void OnSatelliteBasemapClicked(object sender, EventArgs e)
+	{
+		try
+		{
+			if (_bridgeService != null)
+			{
+				await _bridgeService.SetBasemapAsync("satellite");
+				StatusLabel.Text = "Basemap: Satellite";
+			}
+		}
+		catch (Exception ex)
+		{
+			await DisplayAlert("Error", ex.Message, "OK");
+		}
+	}
+	
+	private async void OnOSMBasemapClicked(object sender, EventArgs e)
+	{
+		try
+		{
+			if (_bridgeService != null)
+			{
+				await _bridgeService.SetBasemapAsync("osm");
+				StatusLabel.Text = "Basemap: OpenStreetMap";
+			}
+		}
+		catch (Exception ex)
+		{
+			await DisplayAlert("Error", ex.Message, "OK");
+		}
+	}
+	
+	private async void OnTopoBasemapClicked(object sender, EventArgs e)
+	{
+		try
+		{
+			if (_bridgeService != null)
+			{
+				await _bridgeService.SetBasemapAsync("topo");
+				StatusLabel.Text = "Basemap: Topographic";
+			}
+		}
+		catch (Exception ex)
+		{
+			await DisplayAlert("Error", ex.Message, "OK");
+		}
+	}
+	
+	private async void OnDarkBasemapClicked(object sender, EventArgs e)
+	{
+		try
+		{
+			if (_bridgeService != null)
+			{
+				await _bridgeService.SetBasemapAsync("dark");
+				StatusLabel.Text = "Basemap: Dark";
+			}
+		}
+		catch (Exception ex)
+		{
+			await DisplayAlert("Error", ex.Message, "OK");
+		}
+	}
+	
+	private async void OnLightBasemapClicked(object sender, EventArgs e)
+	{
+		try
+		{
+			if (_bridgeService != null)
+			{
+				await _bridgeService.SetBasemapAsync("light");
+				StatusLabel.Text = "Basemap: Light";
+			}
+		}
+		catch (Exception ex)
+		{
+			await DisplayAlert("Error", ex.Message, "OK");
+		}
+	}
+	
+	private async void OnStatisticsClicked(object sender, EventArgs e)
+	{
+		try
+		{
+			if (_viewModel?.CurrentProject != null)
+			{
+				var project = _viewModel.CurrentProject;
+				var stats = $"Project Statistics:\n\n" +
+				           $"Project: {project.Name}\n" +
+				           $"Wells: {project.WellCount}\n" +
+				           $"Polygons: {project.PolygonCount}\n" +
+				           $"Created: {project.Created:yyyy-MM-dd}\n" +
+				           $"Modified: {project.LastModified:yyyy-MM-dd}\n" +
+				           $"\nUse Tools menu for spatial operations.";
+				await DisplayAlert("Statistics", stats, "OK");
+			}
+			else
+			{
+				await DisplayAlert("Statistics", "No project loaded. Import data to see statistics.", "OK");
+			}
+		}
+		catch (Exception ex)
+		{
+			await DisplayAlert("Error", ex.Message, "OK");
+		}
+	}
+	
+	private async void OnAboutClicked(object sender, EventArgs e)
+	{
+		await DisplayAlert("About StrataVelyx", 
+			"StrataVelyx - Professional GIS for Reservoir Management\n\n" +
+			"Version 1.0\n" +
+			"Built with .NET MAUI & MapLibre GL\n\n" +
+			"Features:\n" +
+			"• Global map with multiple basemaps\n" +
+			"• Spatial analysis engine\n" +
+			"• Data import with validation\n" +
+			"• Project management", 
+			"OK");
+	}
+	
+	private async void OnFileMenuClicked(object sender, EventArgs e)
+	{
+		var action = await DisplayActionSheet("File", "Cancel", null,
+			"📁 Import Wells",
+			"📐 Import Polygons",
+			"💾 Export Data",
+			"",
+			"📋 New Project",
+			"💾 Save Project",
+			"📂 Open Project");
+		
+		if (action == "📁 Import Wells") OnImportClicked(sender, e);
+		else if (action == "📐 Import Polygons") OnImportPolygonsClicked(sender, e);
+		else if (action == "💾 Export Data") OnExportClicked(sender, e);
+		else if (action == "📋 New Project") OnNewProjectClicked(sender, e);
+		else if (action == "💾 Save Project") OnSaveProjectClicked(sender, e);
+		else if (action == "📂 Open Project") OnLoadProjectClicked(sender, e);
+	}
+	
+	private async void OnMapMenuClicked(object sender, EventArgs e)
+	{
+		var action = await DisplayActionSheet("Map", "Cancel", null,
+			"🗺️ Change Basemap",
+			"✏️ Draw Polygon",
+			"🔍 Zoom to Fit",
+			"",
+			"🛰️ Satellite",
+			"🗺️ OpenStreetMap",
+			"⛰️ Topographic",
+			"🌙 Dark",
+			"☀️ Light");
+		
+		if (action == "🗺️ Change Basemap") OnBasemapClicked(sender, e);
+		else if (action == "✏️ Draw Polygon") OnDrawPolygonClicked(sender, e);
+		else if (action == "🔍 Zoom to Fit") OnZoomToFitClicked(sender, e);
+		else if (action == "🛰️ Satellite") OnSatelliteBasemapClicked(sender, e);
+		else if (action == "🗺️ OpenStreetMap") OnOSMBasemapClicked(sender, e);
+		else if (action == "⛰️ Topographic") OnTopoBasemapClicked(sender, e);
+		else if (action == "🌙 Dark") OnDarkBasemapClicked(sender, e);
+		else if (action == "☀️ Light") OnLightBasemapClicked(sender, e);
+	}
+	
+	private async void OnToolsMenuClicked(object sender, EventArgs e)
+	{
+		var action = await DisplayActionSheet("Tools", "Cancel", null,
+			"🔬 Test Spatial Operations",
+			"📊 Statistics");
+		
+		if (action == "🔬 Test Spatial Operations") OnTestButtonClicked(sender, e);
+		else if (action == "📊 Statistics") OnStatisticsClicked(sender, e);
+	}
+	
+	private async void OnHelpMenuClicked(object sender, EventArgs e)
+	{
+		var action = await DisplayActionSheet("Help", "Cancel", null,
+			"ℹ️ About");
+		
+		if (action == "ℹ️ About") OnAboutClicked(sender, e);
+	}
+	
+	// Unified menu action handler
+	public async Task HandleMenuAction(string action)
+	{
+		switch (action)
+		{
+			case "ImportWells":
+				OnImportClicked(this, EventArgs.Empty);
+				break;
+			case "ImportPolygons":
+				OnImportPolygonsClicked(this, EventArgs.Empty);
+				break;
+			case "Export":
+				OnExportClicked(this, EventArgs.Empty);
+				break;
+			case "NewProject":
+				OnNewProjectClicked(this, EventArgs.Empty);
+				break;
+			case "SaveProject":
+				OnSaveProjectClicked(this, EventArgs.Empty);
+				break;
+			case "OpenProject":
+				OnLoadProjectClicked(this, EventArgs.Empty);
+				break;
+			case "ChangeBasemap":
+				OnBasemapClicked(this, EventArgs.Empty);
+				break;
+			case "DrawPolygon":
+				OnDrawPolygonClicked(this, EventArgs.Empty);
+				break;
+			case "ZoomToFit":
+				OnZoomToFitClicked(this, EventArgs.Empty);
+				break;
+			case "SatelliteBasemap":
+				OnSatelliteBasemapClicked(this, EventArgs.Empty);
+				break;
+			case "OSMBasemap":
+				OnOSMBasemapClicked(this, EventArgs.Empty);
+				break;
+			case "TopoBasemap":
+				OnTopoBasemapClicked(this, EventArgs.Empty);
+				break;
+			case "DarkBasemap":
+				OnDarkBasemapClicked(this, EventArgs.Empty);
+				break;
+			case "LightBasemap":
+				OnLightBasemapClicked(this, EventArgs.Empty);
+				break;
+			case "TestSpatial":
+				OnTestButtonClicked(this, EventArgs.Empty);
+				break;
+			case "Statistics":
+				OnStatisticsClicked(this, EventArgs.Empty);
+				break;
+			case "About":
+				OnAboutClicked(this, EventArgs.Empty);
+				break;
+		}
+	}
+	
 	private async void OnSendCommand(object sender, EventArgs e)
 	{
 		try
@@ -360,9 +600,6 @@ public partial class MainPage : ContentPage
 			if (_bridgeService != null)
 			{
 				await _bridgeService.SetDrawingModeAsync(_isDrawingMode);
-				DrawPolygonButton.BackgroundColor = _isDrawingMode 
-					? Color.FromRgb(0xE7, 0x4C, 0x3C) 
-					: Color.FromRgb(0x27, 0xAE, 0x60);
 				StatusLabel.Text = _isDrawingMode ? "Drawing mode: Click to draw polygon" : "Drawing mode disabled";
 			}
 		}
