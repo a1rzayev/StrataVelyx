@@ -225,7 +225,7 @@ public class MainViewModel : INotifyPropertyChanged
         
         try
         {
-            // Remove existing wells layer
+        // Remove existing wells layer
             await BridgeService.RemoveLayerAsync("wells");
             
             if (_filteredWells.Count == 0) return;
@@ -243,17 +243,17 @@ public class MainViewModel : INotifyPropertyChanged
             };
             
             await BridgeService.AddLayerAsync("wells", geojson, style);
-            
-            // Zoom to wells if first time
+        
+        // Zoom to wells if first time
             if (_allWells.Count > 0)
-            {
+        {
                 var bounds = GetWellsBounds(_filteredWells);
                 if (bounds.HasValue)
-                {
+            {
                     await BridgeService.ZoomToBoundsAsync(bounds.Value.MinLon, bounds.Value.MinLat, bounds.Value.MaxLon, bounds.Value.MaxLat);
-                }
             }
         }
+    }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"UpdateMapWells Error: {ex}");

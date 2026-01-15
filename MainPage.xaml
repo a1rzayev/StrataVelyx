@@ -2,110 +2,34 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="StrataVelyx.MainPage"
-             Title="StrataVelyx - Reservoir GIS"
+             Title="WorldMap"
              BackgroundColor="#1a1a1a">
 
-    <Grid ColumnDefinitions="250,*,300" RowDefinitions="Auto,*" Padding="0">
-        
-        <!-- Top Toolbar -->
-        <Border Grid.Column="0" Grid.ColumnSpan="3" Grid.Row="0"
+    <Grid RowDefinitions="Auto,*" Padding="0">
+        <!-- Status Bar -->
+        <Border Grid.Row="0"
                 BackgroundColor="#2d2d2d"
                 Stroke="#3d3d3d"
-                StrokeThickness="0,0,0,1"
-                Padding="8,6">
-            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
-                <!-- Project buttons -->
-                <Button Grid.Column="0"
-                        Text="📋 New"
-                        FontSize="11"
-                        HeightRequest="32"
-                        BackgroundColor="#7E57C2"
-                        TextColor="White"
-                        CornerRadius="4"
-                        Padding="8,0"
-                        Clicked="OnNewProjectClicked" />
-                
-                <Button Grid.Column="1"
-                        Text="💾 Save"
-                        FontSize="11"
-                        HeightRequest="32"
-                        BackgroundColor="#512BD4"
-                        TextColor="White"
-                        CornerRadius="4"
-                        Padding="8,0"
-                        Clicked="OnSaveProjectClicked" />
-                
-                <Button Grid.Column="2"
-                        Text="📂 Open"
-                        FontSize="11"
-                        HeightRequest="32"
-                        BackgroundColor="#1976D2"
-                        TextColor="White"
-                        CornerRadius="4"
-                        Padding="8,0"
-                        Clicked="OnLoadProjectClicked" />
-                
-                <!-- Separator -->
-                <BoxView Grid.Column="3" 
-                         WidthRequest="1" 
-                         HeightRequest="24"
-                         Color="#404040"
-                         VerticalOptions="Center"
-                         Margin="4,0" />
-                
-                <!-- Data buttons -->
-                <Button Grid.Column="4"
-                        x:Name="ImportButton"
-                        Text="📁 Import Wells"
-                        FontSize="11"
-                        HeightRequest="32"
-                        BackgroundColor="#3498DB"
-                        TextColor="White"
-                        CornerRadius="4"
-                        Padding="8,0"
-                        Clicked="OnImportClicked" />
-                
-                <Button Grid.Column="5"
-                        x:Name="DrawPolygonButton"
-                        Text="✏️ Draw"
-                        FontSize="11"
-                        HeightRequest="32"
-                        BackgroundColor="#27AE60"
-                        TextColor="White"
-                        CornerRadius="4"
-                        Padding="8,0"
-                        Clicked="OnDrawPolygonClicked" />
-                
-                <Button Grid.Column="6"
-                        x:Name="ExportButton"
-                        Text="💾 Export"
-                        FontSize="11"
-                        HeightRequest="32"
-                        BackgroundColor="#E67E22"
-                        TextColor="White"
-                        CornerRadius="4"
-                        Padding="8,0"
-                        Clicked="OnExportClicked" />
-                
-                <Label Grid.Column="7"
-                       x:Name="StatusLabel"
-                       Text="🌍 World Map Ready - Import data anywhere"
-                       TextColor="#95A5A6"
-                       FontSize="10"
-                       VerticalOptions="Center"
-                       HorizontalOptions="End"
-                       Margin="8,0,0,0" />
-            </Grid>
+                StrokeThickness="0,0,1,0"
+                Padding="8,4">
+            <Label x:Name="StatusLabel"
+                   Text="🌍 World Map Ready - Use menu bar to import data"
+                   TextColor="#95A5A6"
+                   FontSize="10"
+                   VerticalOptions="Center" />
         </Border>
         
+        <!-- Main Content Grid -->
+        <Grid Grid.Row="1" ColumnDefinitions="250,*,300" Padding="0">
+        
         <!-- Layers Panel (Left) -->
-        <Border Grid.Column="0" Grid.Row="1"
+        <Border Grid.Column="0"
                 BackgroundColor="#252525"
                 Stroke="#3d3d3d"
                 StrokeThickness="0,0,1,0">
             <Grid RowDefinitions="Auto,*,Auto" Padding="8">
                 <!-- Layers Header -->
-                <Label Grid.Row="0"
+                <Label Grid.Row="0" 
                        Text="Layers"
                        TextColor="#E0E0E0"
                        FontSize="14"
@@ -143,13 +67,13 @@
         </Border>
         
         <!-- Map View (Center) -->
-        <Grid Grid.Column="1" Grid.Row="1">
+        <Grid Grid.Column="1">
             <WebView x:Name="MapWebView"
                      BackgroundColor="#1a1a1a" />
         </Grid>
         
         <!-- Chat Panel (Right) -->
-        <Border Grid.Column="2" Grid.Row="1"
+        <Border Grid.Column="2"
                 BackgroundColor="#252525"
                 Stroke="#3d3d3d"
                 StrokeThickness="1,0,0,0">
@@ -159,7 +83,7 @@
                        Text="Chat / Commands"
                        TextColor="#E0E0E0"
                        FontSize="14"
-                       FontAttributes="Bold"
+                FontAttributes="Bold"
                        Margin="0,0,0,8" />
                 
                 <!-- Chat History -->
@@ -193,13 +117,14 @@
                             FontSize="11"
                             HeightRequest="36"
                             BackgroundColor="#27AE60"
-                            TextColor="White"
+                TextColor="White"
                             CornerRadius="4"
                             Padding="12,0"
                             Clicked="OnSendCommand" />
                 </Grid>
             </Grid>
         </Border>
+        </Grid>
     </Grid>
 
 </ContentPage>

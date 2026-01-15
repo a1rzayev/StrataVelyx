@@ -151,6 +151,86 @@ public class WebViewBridgeService
             return false;
         }
     }
+    
+    // C# → JS: Switch basemap
+    public async Task<bool> SetBasemapAsync(string basemapName)
+    {
+        if (_webView == null) return false;
+
+        var script = $@"window.mapBridge.setBasemap('{basemapName}');";
+
+        try
+        {
+            await _webView.EvaluateJavaScriptAsync(script);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error setting basemap: {ex.Message}");
+            return false;
+        }
+    }
+    
+    // C# → JS: Toggle basemap selector
+    public async Task<bool> ToggleBasemapSelectorAsync()
+    {
+        if (_webView == null) return false;
+
+        var script = @"window.mapBridge.toggleBasemapSelector();";
+
+        try
+        {
+            await _webView.EvaluateJavaScriptAsync(script);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error toggling basemap selector: {ex.Message}");
+            return false;
+        }
+    }
+    
+    // C# → JS: Get current map view
+    public async Task<MapView?> GetMapViewAsync()
+    {
+        if (_webView == null) return null;
+
+        var script = @"JSON.stringify(window.mapBridge.getMapView());";
+
+        try
+        {
+            var result = await _webView.EvaluateJavaScriptAsync(script);
+            if (!string.IsNullOrEmpty(result) && result != "null")
+            {
+                return JsonSerializer.Deserialize<MapView>(result);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error getting map view: {ex.Message}");
+        }
+        
+        return null;
+    }
+    
+    // C# → JS: Set map view
+    public async Task<bool> SetMapViewAsync(double longitude, double latitude, double zoom, double bearing = 0, double pitch = 0)
+    {
+        if (_webView == null) return false;
+
+        var script = $@"window.mapBridge.setMapView({longitude}, {latitude}, {zoom}, {bearing}, {pitch});";
+
+        try
+        {
+            await _webView.EvaluateJavaScriptAsync(script);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error setting map view: {ex.Message}");
+            return false;
+        }
+    }
 
     // Event handlers (can be overridden)
     public event EventHandler<MapReadyEventArgs>? MapReady;
@@ -260,4 +340,13 @@ public class PolygonDrawnEventArgs : EventArgs
 {
     public List<double[]> Coordinates { get; set; } = new();
     public double Area { get; set; }
+}
+
+public class MapView
+{
+    public double Longitude { get; set; }
+    public double Latitude { get; set; }
+    public double Zoom { get; set; }
+    public double Bearing { get; set; }
+    public double Pitch { get; set; }
 }

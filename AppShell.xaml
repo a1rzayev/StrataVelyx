@@ -7,6 +7,44 @@
     xmlns:test="clr-namespace:StrataVelyx.TestPages"
     Shell.FlyoutBehavior="Disabled"
     Title="StrataVelyx">
+    
+    <Shell.MenuBarItems>
+        <MenuBarItem Text="File">
+            <MenuFlyoutItem Text="📋 New Project" Clicked="OnNewProject" />
+            <MenuFlyoutItem Text="💾 Save Project" Clicked="OnSaveProject" />
+            <MenuFlyoutItem Text="📂 Open Project" Clicked="OnOpenProject" />
+            <MenuFlyoutSeparator />
+            <MenuFlyoutSubItem Text="Import">
+                <MenuFlyoutItem Text="📁 Import Wells" Clicked="OnImportWells" />
+                <MenuFlyoutItem Text="📐 Import Polygons" Clicked="OnImportPolygons" />
+            </MenuFlyoutSubItem>
+            <MenuFlyoutItem Text="💾 Export Data" Clicked="OnExport" />
+        </MenuBarItem>
+        
+        <MenuBarItem Text="Map">
+            <MenuFlyoutItem Text="🗺️ Change Basemap" Clicked="OnChangeBasemap" />
+            <MenuFlyoutSeparator />
+            <MenuFlyoutItem Text="✏️ Draw Polygon" Clicked="OnDrawPolygon" />
+            <MenuFlyoutItem Text="🔍 Zoom to Fit" Clicked="OnZoomToFit" />
+            <MenuFlyoutSeparator />
+            <MenuFlyoutSubItem Text="Basemap">
+                <MenuFlyoutItem Text="🛰️ Satellite" Clicked="OnSatelliteBasemap" />
+                <MenuFlyoutItem Text="🗺️ OpenStreetMap" Clicked="OnOSMBasemap" />
+                <MenuFlyoutItem Text="⛰️ Topographic" Clicked="OnTopoBasemap" />
+                <MenuFlyoutItem Text="🌙 Dark" Clicked="OnDarkBasemap" />
+                <MenuFlyoutItem Text="☀️ Light" Clicked="OnLightBasemap" />
+            </MenuFlyoutSubItem>
+        </MenuBarItem>
+        
+        <MenuBarItem Text="Tools">
+            <MenuFlyoutItem Text="🔬 Test Spatial Operations" Clicked="OnTestSpatial" />
+            <MenuFlyoutItem Text="📊 Statistics" Clicked="OnStatistics" />
+        </MenuBarItem>
+        
+        <MenuBarItem Text="Help">
+            <MenuFlyoutItem Text="ℹ️ About" Clicked="OnAbout" />
+        </MenuBarItem>
+    </Shell.MenuBarItems>
 
     <ShellContent
         Title="Home"
