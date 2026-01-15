@@ -2,6 +2,7 @@ using StrataVelyx.ViewModels;
 using StrataVelyx.Services;
 using System.Text.Json;
 using System.Collections.Specialized;
+using NetTopologySuite.Geometries;
 
 namespace StrataVelyx;
 
@@ -10,6 +11,7 @@ public partial class MainPage : ContentPage
 	private EnhancedMainViewModel? _viewModel;
 	private WebViewBridgeService? _bridgeService;
 	private bool _isDrawingMode = false;
+	private string? _currentDrawingLayerId = null;
 	private System.Timers.Timer? _messagePollTimer;
 
 	public MainPage()
@@ -78,13 +80,43 @@ public partial class MainPage : ContentPage
 			});
 		};
 		
-		_bridgeService.PolygonDrawn += (s, e) =>
+		_bridgeService.PolygonDrawn += async (s, e) =>
 		{
-			Dispatcher.Dispatch(() =>
+			Dispatcher.Dispatch(async () =>
 			{
 				StatusLabel.Text = $"Polygon drawn with {e.Coordinates.Count} points";
 				AddChatMessage("Map", $"Polygon drawn: {e.Coordinates.Count} points, area: {e.Area:F2}");
-				_isDrawingMode = false;
+				
+				// Convert drawn polygon to FieldPolygon and add to current layer
+				await HandleDrawnPolygonAsync(e.Coordinates);
+				
+				// Keep drawing mode active for multiple polygons
+				// User can click "Stop Drawing" when done
+			});
+		};
+		
+		_bridgeService.DrawingModeEnabled += (s, e) =>
+		{
+			Dispatcher.Dispatch(() =>
+			{
+				StatusLabel.Text = "Drawing mode: Click on map to place points";
+				AddChatMessage("Map", e.Message);
+			});
+		};
+		
+		_bridgeService.DrawingUpdate += (s, e) =>
+		{
+			Dispatcher.Dispatch(() =>
+			{
+				StatusLabel.Text = $"Drawing: {e.PointCount} points placed";
+			});
+		};
+		
+		_bridgeService.DrawingModeChanged += (s, e) =>
+		{
+			Dispatcher.Dispatch(() =>
+			{
+				StatusLabel.Text = e.Message;
 			});
 		};
 	}
@@ -795,20 +827,280 @@ public partial class MainPage : ContentPage
 		}
 	}
 	
-	private async void OnDrawPolygonClicked(object sender, EventArgs e)
+	private async void OnNewPolygonLayerClicked(object sender, EventArgs e)
 	{
 		try
 		{
-			_isDrawingMode = !_isDrawingMode;
-			if (_bridgeService != null)
+			if (_viewModel == null || _bridgeService == null) return;
+			
+			// Prompt for layer name
+			var layerName = await DisplayPromptAsync(
+				"New Polygon Layer",
+				"Enter a name for the new polygon layer:",
+				"Create",
+				"Cancel",
+				"Polygon Layer",
+				initialValue: $"Polygon Layer {DateTime.Now:HH:mm:ss}"
+			);
+			
+			if (string.IsNullOrWhiteSpace(layerName))
+				return;
+			
+			// Create new layer ID
+			_currentDrawingLayerId = $"polygon-layer-{Guid.NewGuid()}";
+			
+			// Create empty GeoJSON layer
+			var emptyGeoJson = @"{
+				""type"": ""FeatureCollection"",
+				""features"": []
+			}";
+			
+			var style = new Dictionary<string, object>
 			{
-				await _bridgeService.SetDrawingModeAsync(_isDrawingMode);
-				StatusLabel.Text = _isDrawingMode ? "Drawing mode: Click to draw polygon" : "Drawing mode disabled";
+				{ "fill-color", "#FF6B6B" },
+				{ "fill-opacity", 0.4 },
+				{ "stroke-color", "#C92A2A" },
+				{ "stroke-width", 2 }
+			};
+			
+			await _bridgeService.AddLayerAsync(_currentDrawingLayerId, emptyGeoJson, style);
+			
+			// Add to layers panel
+			if (_viewModel is EnhancedMainViewModel enhancedViewModel)
+			{
+				enhancedViewModel.AddLayer(_currentDrawingLayerId, layerName, "Polygon", "Geology", 0, true);
 			}
+			
+			// Enable draw button
+			if (DrawPolygonButton != null)
+			{
+				DrawPolygonButton.IsEnabled = true;
+				DrawPolygonButton.BackgroundColor = Color.FromRgb(0x27, 0xAE, 0x60);
+			}
+			
+			StatusLabel.Text = $"Created layer '{layerName}'. Click Draw to start drawing polygons.";
+			AddChatMessage("Layer", $"Created polygon layer '{layerName}'");
 		}
 		catch (Exception ex)
 		{
 			await DisplayAlert("Error", ex.Message, "OK");
+		}
+	}
+	
+	private async void OnDrawPolygonClicked(object sender, EventArgs e)
+	{
+		// #region agent log
+		try { var logPath = Path.Combine(FileSystem.AppDataDirectory, "debug.log"); var log = System.Text.Json.JsonSerializer.Serialize(new { sessionId = "debug-session", runId = "run1", hypothesisId = "A", location = "MainPage.xaml.cs:890", message = "OnDrawPolygonClicked entry", data = new { currentLayerId = _currentDrawingLayerId, currentDrawingMode = _isDrawingMode }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); System.IO.File.AppendAllText(logPath, log + "\n"); System.Diagnostics.Debug.WriteLine($"[DEBUG] OnDrawPolygonClicked: layerId={_currentDrawingLayerId}, mode={_isDrawingMode}"); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[DEBUG LOG ERROR] {ex.Message}"); }
+		// #endregion
+		try
+		{
+			if (_currentDrawingLayerId == null)
+			{
+				await DisplayAlert("No Layer", "Please create a polygon layer first using 'New Polygon Layer' button.", "OK");
+				return;
+			}
+			
+			_isDrawingMode = !_isDrawingMode;
+			// #region agent log
+			try { var logPath = Path.Combine(FileSystem.AppDataDirectory, "debug.log"); var log = System.Text.Json.JsonSerializer.Serialize(new { sessionId = "debug-session", runId = "run1", hypothesisId = "A", location = "MainPage.xaml.cs:902", message = "About to call SetDrawingModeAsync", data = new { newDrawingMode = _isDrawingMode, bridgeServiceNull = _bridgeService == null }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); System.IO.File.AppendAllText(logPath, log + "\n"); System.Diagnostics.Debug.WriteLine($"[DEBUG] About to call SetDrawingModeAsync: mode={_isDrawingMode}"); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[DEBUG LOG ERROR] {ex.Message}"); }
+			// #endregion
+			if (_bridgeService != null)
+			{
+				// Use the bridge service method which properly handles the JavaScript
+				var result = await _bridgeService.SetDrawingModeAsync(_isDrawingMode);
+				// #region agent log
+				try { var logPath = Path.Combine(FileSystem.AppDataDirectory, "debug.log"); var log = System.Text.Json.JsonSerializer.Serialize(new { sessionId = "debug-session", runId = "run1", hypothesisId = "A", location = "MainPage.xaml.cs:907", message = "SetDrawingModeAsync returned", data = new { result = result }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); System.IO.File.AppendAllText(logPath, log + "\n"); System.Diagnostics.Debug.WriteLine($"[DEBUG] SetDrawingModeAsync returned: {result}"); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[DEBUG LOG ERROR] {ex.Message}"); }
+				// #endregion
+				
+				if (!_isDrawingMode)
+				{
+					// Clear any incomplete drawings when disabling
+					await _bridgeService.ClearDrawingAsync();
+				}
+			}
+			
+			// Update button text and appearance
+			if (DrawPolygonButton != null)
+			{
+				DrawPolygonButton.Text = _isDrawingMode ? "✓ Stop Drawing" : "✏️ Draw";
+				DrawPolygonButton.BackgroundColor = _isDrawingMode 
+					? Color.FromRgb(0xC9, 0x2A, 0x2A) // Red when active
+					: Color.FromRgb(0x27, 0xAE, 0x60); // Green when inactive
+			}
+			
+			StatusLabel.Text = _isDrawingMode 
+				? "Drawing mode active - Click on map to place points" 
+				: "Drawing mode disabled";
+		}
+		catch (Exception ex)
+		{
+			System.Diagnostics.Debug.WriteLine($"OnDrawPolygonClicked Error: {ex}");
+			await DisplayAlert("Error", $"Failed to toggle drawing mode: {ex.Message}", "OK");
+		}
+	}
+	
+	private async Task HandleDrawnPolygonAsync(List<double[]> coordinates)
+	{
+		try
+		{
+			if (_viewModel == null || _bridgeService == null || coordinates.Count < 3)
+			{
+				AddChatMessage("Error", "Polygon needs at least 3 points");
+				return;
+			}
+			
+			// Convert coordinates to NetTopologySuite Polygon
+			// Coordinates come as [longitude, latitude] pairs
+			var coordinateList = new List<Coordinate>();
+			foreach (var coord in coordinates)
+			{
+				if (coord.Length < 2) continue;
+				
+				var lon = coord[0];
+				var lat = coord[1];
+				
+				// Skip duplicate coordinates (closed polygon check)
+				if (coordinateList.Count > 0)
+				{
+					var last = coordinateList[coordinateList.Count - 1];
+					if (Math.Abs(last.X - lon) < 0.0001 && Math.Abs(last.Y - lat) < 0.0001)
+					{
+						continue;
+					}
+				}
+				
+				coordinateList.Add(new Coordinate(lon, lat));
+			}
+			
+			// Ensure polygon is closed (first and last coordinates must be the same)
+			if (coordinateList.Count > 0)
+			{
+				var first = coordinateList[0];
+				var last = coordinateList[coordinateList.Count - 1];
+				if (Math.Abs(first.X - last.X) > 0.0001 || Math.Abs(first.Y - last.Y) > 0.0001)
+				{
+					coordinateList.Add(new Coordinate(first.X, first.Y));
+				}
+			}
+			
+			if (coordinateList.Count < 4) // Need at least 4 points (including closing point)
+			{
+				AddChatMessage("Error", "Polygon needs at least 3 distinct points");
+				return;
+			}
+			
+			var linearRing = new NetTopologySuite.Geometries.LinearRing(
+				coordinateList.ToArray());
+			var polygon = new NetTopologySuite.Geometries.Polygon(linearRing);
+			
+			// Create FieldPolygon
+			var fieldPolygon = new StrataVelyx.Models.FieldPolygon
+			{
+				Id = Guid.NewGuid().ToString(),
+				Name = $"Drawn Polygon {DateTime.Now:HH:mm:ss}",
+				Type = "Drawn",
+				Geometry = polygon
+			};
+			
+			// Add polygon to the current drawing layer
+			if (_currentDrawingLayerId != null && _bridgeService != null)
+			{
+				// Get current layer features and add new polygon
+				await AddPolygonToLayerAsync(_currentDrawingLayerId, fieldPolygon);
+				
+				// Update layer count in ViewModel
+				if (_viewModel is EnhancedMainViewModel enhancedViewModel)
+				{
+					var layer = enhancedViewModel.Layers.FirstOrDefault(l => l.LayerId == _currentDrawingLayerId);
+					if (layer != null)
+					{
+						layer.FeatureCount++;
+					}
+				}
+				
+				AddChatMessage("Success", $"Polygon added to layer");
+				StatusLabel.Text = $"Polygon added. Continue drawing or click 'Stop Drawing' to finish.";
+				
+				// Keep drawing mode active for multiple polygons
+				_isDrawingMode = true;
+			}
+			else
+			{
+				AddChatMessage("Error", "No active drawing layer. Create a layer first.");
+			}
+		}
+		catch (Exception ex)
+		{
+			AddChatMessage("Error", $"Failed to add polygon: {ex.Message}");
+			System.Diagnostics.Debug.WriteLine($"HandleDrawnPolygonAsync Error: {ex}");
+		}
+	}
+	
+	private async Task AddPolygonToLayerAsync(string layerId, StrataVelyx.Models.FieldPolygon polygon)
+	{
+		if (_bridgeService == null) return;
+		
+		// Create feature for the new polygon
+		var coordinates = new List<object[]>();
+		foreach (var coord in polygon.Geometry.ExteriorRing.Coordinates)
+		{
+			coordinates.Add(new object[] { coord.X, coord.Y });
+		}
+		
+		var newFeature = new
+		{
+			type = "Feature",
+			id = polygon.Id,
+			properties = new
+			{
+				id = polygon.Id,
+				name = polygon.Name,
+				type = polygon.Type
+			},
+			geometry = new
+			{
+				type = "Polygon",
+				coordinates = new[] { coordinates }
+			}
+		};
+		
+		// Use JavaScript to add feature to existing layer
+		var featureJson = System.Text.Json.JsonSerializer.Serialize(newFeature);
+		var script = $@"
+			(function() {{
+				try {{
+					const source = map.getSource('{layerId}');
+					if (!source) {{
+						return {{ success: false, message: 'Layer source not found' }};
+					}}
+					
+					const data = source._data;
+					const newFeature = {featureJson};
+					
+					// Add new feature to collection
+					data.features.push(newFeature);
+					
+					// Update source
+					source.setData(data);
+					
+					return {{ success: true }};
+				}} catch (error) {{
+					return {{ success: false, message: error.message }};
+				}}
+			}})();
+		";
+		
+		try
+		{
+			if (MapWebView != null)
+			{
+				await MapWebView.EvaluateJavaScriptAsync(script);
+			}
+		}
+		catch (Exception ex)
+		{
+			System.Diagnostics.Debug.WriteLine($"Error adding polygon to layer: {ex.Message}");
+			AddChatMessage("Error", $"Failed to add polygon: {ex.Message}");
 		}
 	}
 	

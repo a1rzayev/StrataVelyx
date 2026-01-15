@@ -45,6 +45,25 @@
                 
                 <!-- Action Buttons -->
                 <StackLayout Grid.Row="2" Spacing="6" Margin="0,8,0,0">
+                    <Button x:Name="NewPolygonLayerButton"
+                            Text="➕ New Polygon Layer"
+                            FontSize="11"
+                            HeightRequest="32"
+                            BackgroundColor="#3498DB"
+                            TextColor="White"
+                            CornerRadius="4"
+                            Clicked="OnNewPolygonLayerClicked" />
+                    
+                    <Button x:Name="DrawPolygonButton"
+                            Text="✏️ Draw"
+                            FontSize="11"
+                            HeightRequest="32"
+                            BackgroundColor="#95A5A6"
+                            TextColor="White"
+                            CornerRadius="4"
+                            IsEnabled="False"
+                            Clicked="OnDrawPolygonClicked" />
+                    
                     <Button x:Name="ImportPolygonsButton"
                             Text="📐 Import Polygons"
                             FontSize="11"

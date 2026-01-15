@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Maui.Storage;
 
 namespace StrataVelyx.Services;
 
@@ -14,6 +15,9 @@ public class WebViewBridgeService
         RegisterHandler("featureClick", OnFeatureClick);
         RegisterHandler("mapClick", OnMapClick);
         RegisterHandler("polygonDrawn", OnPolygonDrawn);
+        RegisterHandler("drawingModeEnabled", OnDrawingModeEnabled);
+        RegisterHandler("drawingUpdate", OnDrawingUpdate);
+        RegisterHandler("drawingModeChanged", OnDrawingModeChanged);
     }
 
     public void SetWebView(WebView webView)
@@ -155,19 +159,63 @@ public class WebViewBridgeService
     // C# → JS: Enable/disable drawing
     public async Task<bool> SetDrawingModeAsync(bool enabled)
     {
-        if (_webView == null) return false;
+        // #region agent log
+        try { var logPath = Path.Combine(FileSystem.AppDataDirectory, "debug.log"); var log = System.Text.Json.JsonSerializer.Serialize(new { sessionId = "debug-session", runId = "run1", hypothesisId = "A", location = "WebViewBridgeService.cs:159", message = "SetDrawingModeAsync entry", data = new { enabled = enabled, webViewNull = _webView == null }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); System.IO.File.AppendAllText(logPath, log + "\n"); System.Diagnostics.Debug.WriteLine($"[DEBUG] SetDrawingModeAsync entry: enabled={enabled}"); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[DEBUG LOG ERROR] {ex.Message}"); }
+        // #endregion
+        
+        if (_webView == null)
+        {
+            // #region agent log
+            try { var logPath = Path.Combine(FileSystem.AppDataDirectory, "debug.log"); var log = System.Text.Json.JsonSerializer.Serialize(new { sessionId = "debug-session", runId = "run1", hypothesisId = "A", location = "WebViewBridgeService.cs:165", message = "WebView is null", data = new { }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); System.IO.File.AppendAllText(logPath, log + "\n"); System.Diagnostics.Debug.WriteLine("[DEBUG] WebView is null"); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[DEBUG LOG ERROR] {ex.Message}"); }
+            // #endregion
+            return false;
+        }
 
-        var script = $@"window.mapBridge.setDrawingMode({enabled.ToString().ToLower()});";
+        // Use a simpler, more reliable JavaScript call
+        var enabledStr = enabled ? "true" : "false";
+        var script = $"window.mapBridge && window.mapBridge.setDrawingMode && window.mapBridge.setDrawingMode({enabledStr});";
+
+        // #region agent log
+        try { var logPath = Path.Combine(FileSystem.AppDataDirectory, "debug.log"); var log = System.Text.Json.JsonSerializer.Serialize(new { sessionId = "debug-session", runId = "run1", hypothesisId = "A", location = "WebViewBridgeService.cs:172", message = "About to execute JavaScript", data = new { script = script }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); System.IO.File.AppendAllText(logPath, log + "\n"); System.Diagnostics.Debug.WriteLine($"[DEBUG] About to execute JS: {script}"); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[DEBUG LOG ERROR] {ex.Message}"); }
+        // #endregion
 
         try
         {
-            await _webView.EvaluateJavaScriptAsync(script);
+            var result = await _webView.EvaluateJavaScriptAsync(script);
+            // #region agent log
+            try { var logPath = Path.Combine(FileSystem.AppDataDirectory, "debug.log"); var log = System.Text.Json.JsonSerializer.Serialize(new { sessionId = "debug-session", runId = "run1", hypothesisId = "A", location = "WebViewBridgeService.cs:178", message = "JavaScript executed successfully", data = new { result = result?.ToString() ?? "null" }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); System.IO.File.AppendAllText(logPath, log + "\n"); System.Diagnostics.Debug.WriteLine($"[DEBUG] JS executed: result={result}"); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[DEBUG LOG ERROR] {ex.Message}"); }
+            // #endregion
+            System.Diagnostics.Debug.WriteLine($"SetDrawingMode called with: {enabled}");
             return true;
         }
         catch (Exception ex)
         {
+            // #region agent log
+            try { var logPath = Path.Combine(FileSystem.AppDataDirectory, "debug.log"); var log = System.Text.Json.JsonSerializer.Serialize(new { sessionId = "debug-session", runId = "run1", hypothesisId = "A", location = "WebViewBridgeService.cs:185", message = "JavaScript execution failed", data = new { error = ex.Message, stackTrace = ex.StackTrace }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); System.IO.File.AppendAllText(logPath, log + "\n"); System.Diagnostics.Debug.WriteLine($"[DEBUG] JS execution failed: {ex.Message}"); } catch (Exception ex2) { System.Diagnostics.Debug.WriteLine($"[DEBUG LOG ERROR] {ex2.Message}"); }
+            // #endregion
             System.Diagnostics.Debug.WriteLine($"Error setting drawing mode: {ex.Message}");
-            return false;
+            // Try alternative approach
+            try
+            {
+                var altScript = $@"
+                    if (typeof window !== 'undefined' && window.mapBridge) {{
+                        window.mapBridge.setDrawingMode({enabledStr});
+                    }}
+                ";
+                await _webView.EvaluateJavaScriptAsync(altScript);
+                // #region agent log
+                try { var logPath = Path.Combine(FileSystem.AppDataDirectory, "debug.log"); var log = System.Text.Json.JsonSerializer.Serialize(new { sessionId = "debug-session", runId = "run1", hypothesisId = "A", location = "WebViewBridgeService.cs:198", message = "Alternative script executed", data = new { }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); System.IO.File.AppendAllText(logPath, log + "\n"); System.Diagnostics.Debug.WriteLine("[DEBUG] Alternative script executed"); } catch (Exception ex3) { System.Diagnostics.Debug.WriteLine($"[DEBUG LOG ERROR] {ex3.Message}"); }
+                // #endregion
+                return true;
+            }
+            catch (Exception ex2)
+            {
+                // #region agent log
+                try { var logPath = Path.Combine(FileSystem.AppDataDirectory, "debug.log"); var log = System.Text.Json.JsonSerializer.Serialize(new { sessionId = "debug-session", runId = "run1", hypothesisId = "A", location = "WebViewBridgeService.cs:203", message = "Alternative script also failed", data = new { error = ex2.Message }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); System.IO.File.AppendAllText(logPath, log + "\n"); System.Diagnostics.Debug.WriteLine($"[DEBUG] Alternative script also failed: {ex2.Message}"); } catch (Exception ex4) { System.Diagnostics.Debug.WriteLine($"[DEBUG LOG ERROR] {ex4.Message}"); }
+                // #endregion
+                System.Diagnostics.Debug.WriteLine($"Alternative approach also failed: {ex2.Message}");
+                return false;
+            }
         }
     }
     
@@ -256,6 +304,9 @@ public class WebViewBridgeService
     public event EventHandler<FeatureClickEventArgs>? FeatureClick;
     public event EventHandler<MapClickEventArgs>? MapClick;
     public event EventHandler<PolygonDrawnEventArgs>? PolygonDrawn;
+    public event EventHandler<DrawingModeEventArgs>? DrawingModeEnabled;
+    public event EventHandler<DrawingUpdateEventArgs>? DrawingUpdate;
+    public event EventHandler<DrawingModeChangedEventArgs>? DrawingModeChanged;
 
     private void OnMapReady(JsonElement data)
     {
@@ -326,16 +377,86 @@ public class WebViewBridgeService
             }
 
             var area = data.TryGetProperty("area", out var areaProp) ? areaProp.GetDouble() : 0.0;
+            var featureId = data.TryGetProperty("featureId", out var idProp) ? idProp.GetString() ?? "" : "";
 
             PolygonDrawn?.Invoke(this, new PolygonDrawnEventArgs
             {
                 Coordinates = coordinates,
-                Area = area
+                Area = area,
+                FeatureId = featureId
             });
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error parsing polygon drawn: {ex.Message}");
+        }
+    }
+    
+    private void OnDrawingModeEnabled(JsonElement data)
+    {
+        try
+        {
+            var message = data.TryGetProperty("message", out var msgProp) ? msgProp.GetString() ?? "" : "";
+            DrawingModeEnabled?.Invoke(this, new DrawingModeEventArgs { Message = message });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error parsing drawing mode enabled: {ex.Message}");
+        }
+    }
+    
+    private void OnDrawingUpdate(JsonElement data)
+    {
+        try
+        {
+            var pointCount = data.TryGetProperty("pointCount", out var countProp) ? countProp.GetInt32() : 0;
+            var message = data.TryGetProperty("message", out var msgProp) ? msgProp.GetString() ?? "" : "";
+            DrawingUpdate?.Invoke(this, new DrawingUpdateEventArgs 
+            { 
+                PointCount = pointCount,
+                Message = message 
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error parsing drawing update: {ex.Message}");
+        }
+    }
+    
+    private void OnDrawingModeChanged(JsonElement data)
+    {
+        try
+        {
+            var mode = data.TryGetProperty("mode", out var modeProp) ? modeProp.GetString() ?? "" : "";
+            var message = data.TryGetProperty("message", out var msgProp) ? msgProp.GetString() ?? "" : "";
+            DrawingModeChanged?.Invoke(this, new DrawingModeChangedEventArgs 
+            { 
+                Mode = mode,
+                Message = message 
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error parsing drawing mode changed: {ex.Message}");
+        }
+    }
+    
+    // C# → JS: Clear current drawing
+    public async Task<bool> ClearDrawingAsync()
+    {
+        if (_webView == null) return false;
+
+        var script = @"window.mapBridge.clearDrawing();";
+
+        try
+        {
+            await _webView.EvaluateJavaScriptAsync(script);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error clearing drawing: {ex.Message}");
+            return false;
         }
     }
 }
@@ -359,6 +480,24 @@ public class PolygonDrawnEventArgs : EventArgs
 {
     public List<double[]> Coordinates { get; set; } = new();
     public double Area { get; set; }
+    public string FeatureId { get; set; } = "";
+}
+
+public class DrawingModeEventArgs : EventArgs
+{
+    public string Message { get; set; } = "";
+}
+
+public class DrawingUpdateEventArgs : EventArgs
+{
+    public int PointCount { get; set; }
+    public string Message { get; set; } = "";
+}
+
+public class DrawingModeChangedEventArgs : EventArgs
+{
+    public string Mode { get; set; } = "";
+    public string Message { get; set; } = "";
 }
 
 public class MapView

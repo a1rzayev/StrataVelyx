@@ -18,6 +18,15 @@
             width: 100%;
             height: 100vh;
         }
+        
+        /* Pencil cursor for drawing mode */
+        .drawing-mode {
+            cursor: crosshair !important;
+        }
+        
+        .drawing-mode .maplibregl-canvas-container {
+            cursor: crosshair !important;
+        }
         .maplibregl-ctrl-top-left {
             top: 10px;
             left: 10px;
@@ -252,7 +261,13 @@
             maxZoom: 19,
             minZoom: 0,
             pitch: 0,
-            bearing: 0
+            bearing: 0,
+            // Enable touch and trackpad support
+            touchZoomRotate: true,
+            touchPitch: true,
+            doubleClickZoom: true,
+            dragRotate: true,
+            dragPan: true
         });
         
         // Add navigation controls (pan, zoom, rotate)
@@ -370,15 +385,101 @@
             };
         }
 
-        // Initialize Draw control
-        const draw = new MapLibreDraw({
-            displayControlsDefault: false,
-            controls: {
-                polygon: true,
-                trash: true
-            }
-        });
-        map.addControl(draw);
+        // Initialize Draw control - will be added after map loads
+        let draw;
+        
+        // Custom styles to make dots and lines more visible
+        const customDrawStyles = [
+                // Active polygon being drawn
+                {
+                    'id': 'gl-draw-polygon-fill-active',
+                    'type': 'fill',
+                    'filter': ['all', ['==', '$type', 'Polygon'], ['==', 'active', 'true']],
+                    'paint': {
+                        'fill-color': '#3bb2d0',
+                        'fill-opacity': 0.2
+                    }
+                },
+                // Inactive polygon
+                {
+                    'id': 'gl-draw-polygon-fill-inactive',
+                    'type': 'fill',
+                    'filter': ['all', ['==', '$type', 'Polygon'], ['==', 'active', 'false']],
+                    'paint': {
+                        'fill-color': '#3bb2d0',
+                        'fill-opacity': 0.1
+                    }
+                },
+                // Active polygon outline
+                {
+                    'id': 'gl-draw-polygon-stroke-active',
+                    'type': 'line',
+                    'filter': ['all', ['==', '$type', 'Polygon'], ['==', 'active', 'true']],
+                    'paint': {
+                        'line-color': '#1e90ff',
+                        'line-width': 3,
+                        'line-dasharray': [0.2, 2]
+                    }
+                },
+                // Inactive polygon outline
+                {
+                    'id': 'gl-draw-polygon-stroke-inactive',
+                    'type': 'line',
+                    'filter': ['all', ['==', '$type', 'Polygon'], ['==', 'active', 'false']],
+                    'paint': {
+                        'line-color': '#1e90ff',
+                        'line-width': 2
+                    }
+                },
+                // Vertex points (dots) - active
+                {
+                    'id': 'gl-draw-polygon-and-line-vertex-active',
+                    'type': 'circle',
+                    'filter': ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['==', 'active', 'true']],
+                    'paint': {
+                        'circle-radius': 8,
+                        'circle-color': '#ff0000',
+                        'circle-stroke-color': '#ffffff',
+                        'circle-stroke-width': 3
+                    }
+                },
+                // Vertex points (dots) - inactive
+                {
+                    'id': 'gl-draw-polygon-and-line-vertex-inactive',
+                    'type': 'circle',
+                    'filter': ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['==', 'active', 'false']],
+                    'paint': {
+                        'circle-radius': 6,
+                        'circle-color': '#1e90ff',
+                        'circle-stroke-color': '#ffffff',
+                        'circle-stroke-width': 2
+                    }
+                },
+                // Midpoint markers
+                {
+                    'id': 'gl-draw-line-midpoint',
+                    'type': 'circle',
+                    'filter': ['all', ['==', '$type', 'Point'], ['==', 'meta', 'midpoint']],
+                    'paint': {
+                        'circle-radius': 4,
+                        'circle-color': '#1e90ff',
+                        'circle-stroke-color': '#ffffff',
+                        'circle-stroke-width': 1
+                    }
+                },
+                // Point being added
+                {
+                    'id': 'gl-draw-point-point-stroke-active',
+                    'type': 'circle',
+                    'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Point']],
+                    'paint': {
+                        'circle-radius': 7,
+                        'circle-color': '#ff0000',
+                        'circle-stroke-color': '#ffffff',
+                        'circle-stroke-width': 3
+                    }
+                }
+            ];
 
         // Store layers
         const layers = new Map();
@@ -632,15 +733,252 @@
                 }
             },
 
+            // Internal helper to actually enable/disable drawing
+            setDrawingModeInternal: function(enabled) {
+                try {
+                    // Get draw control reference (try both local and global)
+                    const drawControl = draw || window.drawControl;
+                    if (!drawControl) {
+                        console.error('[DEBUG] Draw control still not available in setDrawingModeInternal!');
+                        return { success: false, message: 'Draw control not available' };
+                    }
+                    
+                    if (enabled) {
+                        // Add drawing mode class to map container for cursor
+                        const mapContainer = document.getElementById('map');
+                        if (mapContainer) {
+                            mapContainer.classList.add('drawing-mode');
+                        }
+                        
+                        console.log('[DEBUG] Enabling draw mode, current draw mode:', drawControl.getMode());
+                        // #region agent log
+                        fetch('http://127.0.0.1:7242/ingest/f17a4b02-4990-4afb-9d5d-b06870c9e66f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'map.html:771',message:'About to change draw mode',data:{drawExists:typeof drawControl !== 'undefined',changeModeExists:typeof drawControl?.changeMode === 'function',currentMode:drawControl?.getMode?.()},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})}).catch(()=>{});
+                        // #endregion
+                        
+                        if (drawControl && typeof drawControl.changeMode === 'function') {
+                            drawControl.changeMode('draw_polygon');
+                            // #region agent log
+                            fetch('http://127.0.0.1:7242/ingest/f17a4b02-4990-4afb-9d5d-b06870c9e66f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'map.html:775',message:'draw.changeMode succeeded',data:{currentMode:drawControl.getMode()},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})}).catch(()=>{});
+                            // #endregion
+                            console.log('[DEBUG] Draw mode changed to draw_polygon, current mode:', drawControl.getMode());
+                        } else {
+                            console.error('[DEBUG] Draw control or changeMode function not available!');
+                            return { success: false, message: 'Draw control not available' };
+                        }
+                        
+                        // Show instruction message
+                        postMessageToCSharp({
+                            type: 'drawingModeEnabled',
+                            message: 'Drawing mode: Click on the map to place points. Double-click or click the first point to complete the polygon.'
+                        });
+                        
+                        return { success: true };
+                    } else {
+                        // Disable drawing mode
+                        // Remove drawing mode class
+                        const mapContainer = document.getElementById('map');
+                        if (mapContainer) {
+                            mapContainer.classList.remove('drawing-mode');
+                        }
+                        
+                        console.log('[DEBUG] Disabling draw mode');
+                        try {
+                            if (drawControl && typeof drawControl.changeMode === 'function') {
+                                drawControl.changeMode('simple_select');
+                            }
+                        } catch (err) {
+                            console.error('Error disabling draw mode:', err);
+                        }
+                        // Clear any incomplete drawings
+                        try {
+                            const features = drawControl.getAll();
+                            if (features.features.length > 0) {
+                                // Check if there's an incomplete polygon
+                                const incomplete = features.features.find(f => 
+                                    f.geometry.type === 'Polygon' && 
+                                    f.geometry.coordinates[0].length < 4 // Less than 4 points (first and last are same)
+                                );
+                                if (incomplete) {
+                                    drawControl.delete(incomplete.id);
+                                }
+                            }
+                        } catch (err) {
+                            console.error('Error clearing drawings:', err);
+                        }
+                        
+                        return { success: true };
+                    }
+                } catch (error) {
+                    console.error('Error in setDrawingModeInternal:', error);
+                    return { success: false, message: error.message };
+                }
+            },
+            
             // C# → JS: Enable/disable drawing
             setDrawingMode: function(enabled) {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/f17a4b02-4990-4afb-9d5d-b06870c9e66f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'map.html:747',message:'setDrawingMode called',data:{enabled:enabled,drawExists:typeof draw !== 'undefined',mapLoaded:map.loaded()},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
+                console.log('[DEBUG] setDrawingMode called:', enabled, 'draw exists:', typeof draw !== 'undefined', 'map loaded:', map.loaded());
+                // #endregion
+                
+                console.log('Setting drawing mode to:', enabled);
+                isDrawingMode = enabled;
+                
+                if (enabled) {
+                    // Check if draw control exists (try both local and global)
+                    const drawControl = draw || window.drawControl;
+                    
+                    // Wait for draw control to be initialized if it's not ready yet
+                    if (!drawControl || !map.loaded()) {
+                        console.log('[DEBUG] Draw control or map not ready, waiting...', { draw: !!draw, windowDraw: !!window.drawControl, mapLoaded: map.loaded() });
+                        // #region agent log
+                        fetch('http://127.0.0.1:7242/ingest/f17a4b02-4990-4afb-9d5d-b06870c9e66f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'map.html:826',message:'Waiting for draw control',data:{drawExists:typeof draw !== 'undefined',windowDrawExists:typeof window.drawControl !== 'undefined',mapLoaded:map.loaded()},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})}).catch(()=>{});
+                        // #endregion
+                        
+                        // Wait for map to load and draw to be initialized
+                        let attempts = 0;
+                        const checkInterval = setInterval(function() {
+                            attempts++;
+                            const readyDraw = draw || window.drawControl;
+                            if (readyDraw && map.loaded()) {
+                                clearInterval(checkInterval);
+                                console.log('[DEBUG] Draw control ready after', attempts * 100, 'ms');
+                                // Update local draw reference
+                                if (!draw && window.drawControl) {
+                                    draw = window.drawControl;
+                                }
+                                // Draw is ready, proceed
+                                window.mapBridge.setDrawingModeInternal(true);
+                            } else if (attempts > 20) { // Max 2 seconds
+                                clearInterval(checkInterval);
+                                console.error('[DEBUG] Timeout waiting for draw control after', attempts * 100, 'ms');
+                                postMessageToCSharp({
+                                    type: 'drawingModeEnabled',
+                                    message: 'Error: Map not ready. Please wait a moment and try again.'
+                                });
+                            }
+                        }, 100);
+                        
+                        return { success: true, message: 'Waiting for draw control...' };
+                    }
+                    
+                    // Update local reference if needed
+                    if (!draw && window.drawControl) {
+                        draw = window.drawControl;
+                    }
+                    
+                    // Draw control is ready, proceed
+                    return window.mapBridge.setDrawingModeInternal(true);
+                } else {
+                    // Disable drawing mode
+                    if (!draw) {
+                        return { success: false, message: 'Draw control not initialized' };
+                    }
+                    return window.mapBridge.setDrawingModeInternal(false);
+                }
+            },
+            
+            // Internal function to actually set drawing mode (called after draw is ready)
+            setDrawingModeInternal: function(enabled) {
                 try {
                     if (enabled) {
-                        draw.changeMode('draw_polygon');
+                        // Add drawing mode class to map container for cursor
+                        const mapContainer = document.getElementById('map');
+                        if (mapContainer) {
+                            mapContainer.classList.add('drawing-mode');
+                        }
+                        
+                        console.log('[DEBUG] Enabling draw mode, current draw mode:', draw.getMode());
+                        // #region agent log
+                        fetch('http://127.0.0.1:7242/ingest/f17a4b02-4990-4afb-9d5d-b06870c9e66f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'map.html:771',message:'About to change draw mode',data:{drawExists:typeof draw !== 'undefined',changeModeExists:typeof draw?.changeMode === 'function',currentMode:draw?.getMode?.()},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})}).catch(()=>{});
+                        // #endregion
+                        
+                        if (draw && typeof draw.changeMode === 'function') {
+                            draw.changeMode('draw_polygon');
+                            // #region agent log
+                            fetch('http://127.0.0.1:7242/ingest/f17a4b02-4990-4afb-9d5d-b06870c9e66f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'map.html:775',message:'draw.changeMode succeeded',data:{currentMode:draw.getMode()},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})}).catch(()=>{});
+                            // #endregion
+                            console.log('[DEBUG] Draw mode changed to draw_polygon, current mode:', draw.getMode());
+                        } else {
+                            console.error('Draw control or changeMode function not available!');
+                            return { success: false, message: 'Draw control not available' };
+                        }
+                        
+                        // Show instruction message
+                        postMessageToCSharp({
+                            type: 'drawingModeEnabled',
+                            message: 'Drawing mode: Click on the map to place points. Double-click or click the first point to complete the polygon.'
+                        });
+                        
+                        return { success: true };
                     } else {
-                        draw.changeMode('simple_select');
+                        // Disable drawing mode
+                        if (!draw) {
+                            return { success: false, message: 'Draw control not initialized' };
+                        }
+                        
+                        // Remove drawing mode class
+                        const mapContainer = document.getElementById('map');
+                        if (mapContainer) {
+                            mapContainer.classList.remove('drawing-mode');
+                        }
+                        
+                        console.log('[DEBUG] Disabling draw mode');
+                        try {
+                            if (draw && typeof draw.changeMode === 'function') {
+                                draw.changeMode('simple_select');
+                            }
+                        } catch (err) {
+                            console.error('Error disabling draw mode:', err);
+                        }
+                        // Clear any incomplete drawings
+                        try {
+                            const features = draw.getAll();
+                            if (features.features.length > 0) {
+                                // Check if there's an incomplete polygon
+                                const incomplete = features.features.find(f => 
+                                    f.geometry.type === 'Polygon' && 
+                                    f.geometry.coordinates[0].length < 4 // Less than 4 points (first and last are same)
+                                );
+                                if (incomplete) {
+                                    draw.delete(incomplete.id);
+                                }
+                            }
+                        } catch (err) {
+                            console.error('Error clearing drawings:', err);
+                        }
+                        
+                        return { success: true };
                     }
+                } catch (error) {
+                    console.error('Error in setDrawingModeInternal:', error);
+                    return { success: false, message: error.message };
+                }
+            },
+            
+            // C# → JS: Clear current drawing
+            clearDrawing: function() {
+                try {
+                    draw.deleteAll();
                     return { success: true };
+                } catch (error) {
+                    return { success: false, message: error.message };
+                }
+            },
+            
+            // C# → JS: Get current drawing state
+            getDrawingState: function() {
+                try {
+                    const features = draw.getAll();
+                    return {
+                        success: true,
+                        featureCount: features.features.length,
+                        features: features.features.map(f => ({
+                            id: f.id,
+                            type: f.geometry.type,
+                            coordinates: f.geometry.coordinates
+                        }))
+                    };
                 } catch (error) {
                     return { success: false, message: error.message };
                 }
@@ -677,8 +1015,33 @@
             return JSON.stringify(messages);
         };
 
-        // JS → C#: Handle map clicks
-        map.on('click', function(e) {
+        // Track drawing mode state
+        let isDrawingMode = false;
+        
+        // JS → C#: Handle map clicks (only when not in drawing mode)
+        // Support both mouse and touch events
+        function handleMapInteraction(e) {
+            // Don't send map click events when in drawing mode (let draw control handle it)
+            if (isDrawingMode) {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/f17a4b02-4990-4afb-9d5d-b06870c9e66f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'map.html:857',message:'Click blocked in drawing mode',data:{coordinates:[e.lngLat.lng,e.lngLat.lat]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                // #endregion
+                // Let draw control handle the interaction
+                return;
+            }
+            
+            // Check if click is on a draw feature
+            const drawFeatures = map.queryRenderedFeatures(e.point, {
+                layers: ['gl-draw-polygon-fill-active', 'gl-draw-polygon-fill-inactive', 
+                         'gl-draw-polygon-stroke-active', 'gl-draw-polygon-stroke-inactive',
+                         'gl-draw-polygon-and-line-vertex-active', 'gl-draw-polygon-and-line-vertex-inactive']
+            });
+            
+            if (drawFeatures.length > 0) {
+                // Click is on draw control, let it handle it
+                return;
+            }
+            
             const features = map.queryRenderedFeatures(e.point, {
                 layers: Array.from(layers.keys())
             });
@@ -700,19 +1063,160 @@
                     coordinates: [e.lngLat.lng, e.lngLat.lat]
                 });
             }
+        }
+        
+        // Handle map clicks - but ONLY when NOT in drawing mode
+        // When in drawing mode, the draw control handles clicks automatically
+        // Use a lower priority handler that doesn't interfere with draw control
+        map.on('click', function(e) {
+            // #region agent log
+            const drawControl = draw || window.drawControl;
+            const currentMode = drawControl?.getMode?.() || 'unknown';
+            fetch('http://127.0.0.1:7242/ingest/f17a4b02-4990-4afb-9d5d-b06870c9e66f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'map.html:963',message:'Map click event',data:{isDrawingMode:isDrawingMode,drawMode:currentMode,coordinates:[e.lngLat.lng,e.lngLat.lat]},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})}).catch(()=>{});
+            console.log('[DEBUG] Map click:', { isDrawingMode, drawMode: currentMode });
+            // #endregion
+            
+            // CRITICAL: If draw control is in draw_polygon mode, it MUST handle the click
+            // Don't process our handler at all - let draw control have full control
+            if (drawControl && drawControl.getMode() === 'draw_polygon') {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/f17a4b02-4990-4afb-9d5d-b06870c9e66f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'map.html:970',message:'Skipping handler - draw_polygon mode active',data:{drawMode:drawControl.getMode()},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})}).catch(()=>{});
+                // #endregion
+                console.log('[DEBUG] Draw control in draw_polygon mode - skipping our handler, letting draw control handle click');
+                // Don't call handleMapInteraction - let draw control handle it
+                return;
+            }
+            
+            // Only handle clicks when NOT in drawing mode
+            handleMapInteraction(e);
+        });
+        map.on('touchend', function(e) {
+            // Convert touch event to click-like event for compatibility
+            if (e.originalEvent && e.originalEvent.changedTouches && e.originalEvent.changedTouches.length > 0) {
+                const touch = e.originalEvent.changedTouches[0];
+                const point = map.project([e.lngLat.lng, e.lngLat.lat]);
+                const syntheticEvent = {
+                    point: point,
+                    lngLat: e.lngLat,
+                    originalEvent: e.originalEvent
+                };
+                handleMapInteraction(syntheticEvent);
+            }
         });
 
-        // JS → C#: Handle polygon drawing
-        map.on('draw.create', function(e) {
-            const feature = e.features[0];
-            const coordinates = feature.geometry.coordinates[0]; // Polygon coordinates
-            
-            postMessageToCSharp({
-                type: 'polygonDrawn',
-                coordinates: coordinates,
-                area: calculatePolygonArea(coordinates)
-            });
+        // Track draw click events to see if draw control is receiving clicks
+        map.on('draw.click', function(e) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f17a4b02-4990-4afb-9d5d-b06870c9e66f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'map.html:984',message:'Draw click event',data:{mode:draw?.getMode?.(),coordinates:[e.lngLat?.lng,e.lngLat?.lat]},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})}).catch(()=>{});
+            // #endregion
+            console.log('[DEBUG] Draw click event received:', draw?.getMode());
         });
+        
+        // JS → C#: Handle polygon drawing events
+        map.on('draw.create', function(e) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f17a4b02-4990-4afb-9d5d-b06870c9e66f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'map.html:992',message:'Draw create event fired',data:{featureCount:e.features?.length || 0},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})}).catch(()=>{});
+            // #endregion
+            console.log('[DEBUG] Draw create event:', e);
+            const feature = e.features[0];
+            if (feature && feature.geometry && feature.geometry.type === 'Polygon') {
+                const coordinates = feature.geometry.coordinates[0]; // Polygon coordinates
+                
+                console.log('Polygon created with coordinates:', coordinates.length);
+                
+                // Remove the drawn feature from draw control (we'll add it to our layer)
+                try {
+                    draw.delete(feature.id);
+                } catch (err) {
+                    console.error('Error deleting draw feature:', err);
+                }
+                
+                postMessageToCSharp({
+                    type: 'polygonDrawn',
+                    coordinates: coordinates,
+                    area: calculatePolygonArea(coordinates),
+                    featureId: feature.id || 'unknown'
+                });
+                
+                // Re-enable drawing mode for next polygon
+                if (isDrawingMode) {
+                    setTimeout(function() {
+                        try {
+                            draw.changeMode('draw_polygon');
+                            console.log('Re-enabled drawing mode for next polygon');
+                        } catch (err) {
+                            console.error('Error re-enabling draw mode:', err);
+                        }
+                    }, 200);
+                }
+            }
+        });
+        
+        // Track drawing updates - this fires when points are added
+        map.on('draw.update', function(e) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f17a4b02-4990-4afb-9d5d-b06870c9e66f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'map.html:1024',message:'Draw update event',data:{featureCount:e.features?.length || 0},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})}).catch(()=>{});
+            // #endregion
+            console.log('[DEBUG] Draw update event - point added');
+            const features = e.features;
+            if (features.length > 0) {
+                const feature = features[0];
+                if (feature.geometry.type === 'Polygon') {
+                    const pointCount = feature.geometry.coordinates[0].length - 1; // -1 because first and last are same
+                    postMessageToCSharp({
+                        type: 'drawingUpdate',
+                        pointCount: pointCount,
+                        message: `Polygon has ${pointCount} points. Click to add more or double-click to finish.`
+                    });
+                }
+            }
+        });
+        
+        // Track when draw control receives any interaction
+        map.on('draw.render', function(e) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f17a4b02-4990-4afb-9d5d-b06870c9e66f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'map.html:1037',message:'Draw render event',data:{mode:draw?.getMode?.()},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})}).catch(()=>{});
+            // #endregion
+            console.log('[DEBUG] Draw render event - draw control is active');
+        });
+        
+        // Track mode changes
+        map.on('draw.modechange', function(e) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f17a4b02-4990-4afb-9d5d-b06870c9e66f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'map.html:1005',message:'Draw modechange event',data:{mode:e.mode,previousMode:e.mode},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
+            console.log('Draw mode changed to:', e.mode);
+            if (e.mode === 'draw_polygon') {
+                // Ensure cursor is set
+                const mapContainer = document.getElementById('map');
+                if (mapContainer) {
+                    mapContainer.classList.add('drawing-mode');
+                }
+                postMessageToCSharp({
+                    type: 'drawingModeChanged',
+                    mode: 'draw_polygon',
+                    message: 'Drawing mode: Click on the map to place points for your polygon.'
+                });
+            } else {
+                // Remove cursor when not in draw mode
+                const mapContainer = document.getElementById('map');
+                if (mapContainer) {
+                    mapContainer.classList.remove('drawing-mode');
+                }
+            }
+        });
+        
+        // Ensure draw control is ready
+        map.on('load', function() {
+            console.log('Map loaded, draw control ready');
+            // Verify draw control is initialized
+            if (draw && typeof draw.changeMode === 'function') {
+                console.log('Draw control is ready');
+            } else {
+                console.error('Draw control not properly initialized');
+            }
+        });
+        
 
         // Calculate polygon area (simplified)
         function calculatePolygonArea(coordinates) {
@@ -724,11 +1228,55 @@
             return Math.abs(area / 2);
         }
 
-        // Wait for map to load
+        // Wait for map to load, then initialize draw control
         map.on('load', function() {
-            console.log('Map loaded and ready');
+            console.log('[DEBUG] Map loaded, initializing draw control...');
+            
+            // Initialize Draw control AFTER map loads
+            draw = new MapLibreDraw({
+                displayControlsDefault: false,
+                controls: {
+                    polygon: true,
+                    trash: true
+                },
+                // Enable touch support for trackpad/mouse
+                touchEnabled: true,
+                touchBuffer: 2,
+                clickBuffer: 2,
+                // Use custom styles
+                styles: customDrawStyles
+            });
+            
+            // Add draw control to map
+            map.addControl(draw);
+            
+            // Make draw control accessible globally for setDrawingMode
+            window.drawControl = draw;
+            
+            // Verify draw control is properly attached
+            console.log('[DEBUG] Draw control added, checking if it receives events...');
+            
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f17a4b02-4990-4afb-9d5d-b06870c9e66f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'map.html:1134',message:'Map load event - draw control initialized',data:{drawExists:typeof draw !== 'undefined',changeModeExists:typeof draw?.changeMode === 'function',currentMode:draw?.getMode?.() || 'unknown',onMap:map.hasControl(draw)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'D'})}).catch(()=>{});
+            // #endregion
+            console.log('[DEBUG] Map loaded and ready');
+            console.log('[DEBUG] Draw control initialized:', draw ? 'Yes' : 'No');
+            console.log('[DEBUG] Draw changeMode function:', typeof draw.changeMode);
+            
+            // Verify draw control is working
+            if (draw && typeof draw.changeMode === 'function') {
+                console.log('[DEBUG] Draw control is ready and functional');
+            } else {
+                console.error('[DEBUG] Draw control is not properly initialized!');
+            }
+            
             // Notify C# that map is ready
             postMessageToCSharp({ type: 'mapReady' });
+        });
+        
+        // Debug: Log all draw events
+        map.on('draw.*', function(e) {
+            console.log('Draw event:', e.type, e);
         });
     </script>
 </body>
