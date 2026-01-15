@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="StrataVelyx.TestPages.SimplePage"
+             Title="Simple Test Page"
+             BackgroundColor="White">
+
+    <VerticalStackLayout Padding="30" Spacing="25" VerticalOptions="Center">
+        
+        <Label Text="StrataVelyx Test"
+               FontSize="32"
+               FontAttributes="Bold"
+               HorizontalOptions="Center"
+               TextColor="Black" />
+        
+        <Label Text="If you see this, the app is working!"
+               FontSize="18"
+               HorizontalOptions="Center"
+               TextColor="DarkGreen" />
+        
+        <Button Text="Click Me to Test"
+                Clicked="OnButtonClicked"
+                BackgroundColor="#007ACC"
+                TextColor="White"
+                WidthRequest="200"
+                HeightRequest="50"
+                HorizontalOptions="Center" />
+        
+        <Label x:Name="ResultLabel"
+               Text=""
+               FontSize="16"
+               HorizontalOptions="Center"
+               TextColor="Blue"
+               Margin="0,20,0,0" />
+        
+    </VerticalStackLayout>
+
+</ContentPage>

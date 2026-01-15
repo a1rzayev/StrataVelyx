@@ -60,6 +60,11 @@
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
 		<PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="$(MauiVersion)" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.1" />
+		<PackageReference Include="Mapsui.Maui" Version="4.1.6" />
+		<PackageReference Include="CsvHelper" Version="33.0.1" />
+		<PackageReference Include="NetTopologySuite" Version="2.5.0" />
+		<PackageReference Include="NetTopologySuite.IO.GeoJSON" Version="4.0.0" />
+		<PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
 	</ItemGroup>
 
 </Project>
